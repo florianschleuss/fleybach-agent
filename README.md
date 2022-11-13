@@ -1,4 +1,4 @@
-# Title ![Latest Stable Version](https://img.shields.io/github/v/release/florianschleuss/<--repo-->) ![Repository Size](https://img.shields.io/github/repo-size/florianschleuss/<--repo-->) ![License](https://img.shields.io/github/license/florianschleuss/<--repo-->)
+# Title ![Latest Stable Version](https://img.shields.io/github/v/release/florianschleuss/fleybach-agent) ![Repository Size](https://img.shields.io/github/repo-size/florianschleuss/fleybach-agent) ![License](https://img.shields.io/github/license/florianschleuss/fleybach-agent)
 
 #### Table of Contents
 1. [Basic Instruction](#basic-instruction)

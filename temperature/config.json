@@ -1,0 +1,29 @@
+{
+    "sensors": [
+        {
+            "device_id": "28-03179779c5de",
+            "name": "water",
+            "offset": 2,
+            "enabled": false
+        },
+        {
+            "device_id": "28-0416a1bf2bff",
+            "name": "air",
+            "enabled": false
+        },
+        {
+            "device_id": "28-0317046838ff",
+            "name": "basement"
+        },
+        {
+            "device_id": "28-01131314efaa",
+            "name": "buffer_top",
+            "enabled": false
+        },
+        {
+            "device_id": "28-011313227baa",
+            "name": "buffer_bottom",
+            "enabled": false
+        }
+    ]
+}

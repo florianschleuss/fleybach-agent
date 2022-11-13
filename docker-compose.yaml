@@ -1,0 +1,14 @@
+version: "3"
+services:
+  # DS18B12 sensor read out
+  temperature:
+    container_name: temperature
+    build: ./temperature
+    privileged: true
+    volumes:
+      - ./temperature:/usr/src/temperature
+      - ./utils:/usr/src/temperature/utils
+    environment:
+      - CUSTOMER_DOMAIN
+      - CUSTOMER_SECRET
+      - AUTH_URL
