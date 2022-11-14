@@ -20,7 +20,7 @@ with open('config.json') as config:
 
 def update_sensor(id: str, value: Union[int, float]) -> bool:
     jwt.v()
-    sensor_config = next(s for s in config['sensors'] if s['device_id'] == id)
+    sensor_config = next(s for s in config['sensors'] if s['deviceId'] == id)
     if sensor_config.get('offset') is not None:
         value = value + sensor_config['offset']
     unit = '°C'
@@ -29,7 +29,6 @@ def update_sensor(id: str, value: Union[int, float]) -> bool:
         'value': value
     }, headers={'x-access-token': jwt.token._token})
     if patch.status_code == 404:
-        # print(patch.json(), flush = True)
         post = r.post(f'http://{domain}/sensor/sensors?customer_id={jwt.token.customer_id}', json={
             'id': id,
             'name': sensor_config['name'],
@@ -37,24 +36,24 @@ def update_sensor(id: str, value: Union[int, float]) -> bool:
             'unit': unit,
             'type': type
         }, headers={'x-access-token': jwt.token._token})
-    return False
+    return False  # TODO Validation of success
 
 
 def get_temperature(id: str):
-    sensor_config = next(s for s in config['sensors'] if s['device_id'] == id)
+    sensor_config = next(s for s in config['sensors'] if s['deviceId'] == id)
     try:
         with open('/sys/bus/w1/devices/{}/w1_slave'.format(id)) as file:
             filecontent = file.read()
         stringvalue = filecontent.split("\n")[1].split(" ")[9]
         temp = float(stringvalue[2:]) / 1000
-        if sensor_config.get('lower_bounds', -20) <= temp <= sensor_config.get('upper_bounds', 50):
+        if sensor_config.get('lowerBounds', -20) <= temp <= sensor_config.get('upperBounds', 50):
             return temp
     except FileNotFoundError as e:
         sensor_config['timeout'] = (
             datetime.now() + timedelta(minutes=5)).timestamp()
-        sensor_config['disconnected_cycles'] = sensor_config.get(
-            'disconnected_cycles', 0) + 1
-        if sensor_config['disconnected_cycles'] % 6 == 0:
+        sensor_config['disconnectedCycles'] = sensor_config.get(
+            'disconnectedCycles', 0) + 1
+        if sensor_config['disconnectedCycles'] % 6 == 0:
             # TODO E-Mail alert
             print(datetime.now(), "E-Mail", flush=True)
     except Exception as e:
@@ -69,9 +68,9 @@ if __name__ == '__main__':
             if s.get('enabled', True):
                 if s.get('timeout', 0) > datetime.now().timestamp():
                     continue
-                temperature = get_temperature(s['device_id'])
+                temperature = get_temperature(s['deviceId'])
                 if temperature is not None:
-                    update_sensor(s['device_id'], temperature)
+                    update_sensor(s['deviceId'], temperature)
         time.sleep(5 - (datetime.now().timestamp() - start))
 
     exit()
