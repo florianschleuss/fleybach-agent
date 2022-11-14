@@ -39,6 +39,14 @@ def update_sensor(id: str, value: Union[int, float]) -> bool:
     return False  # TODO Validation of success
 
 
+def make_history(names: list):
+    jwt.v()
+    post = r.post(f'http://{domain}/sensor/sensors/names/history?customer_id={jwt.token.customer_id}', json={
+        'names': names
+    }, headers={'x-access-token': jwt.token._token})
+    return False  # TODO Validation of success
+
+
 def get_temperature(id: str):
     sensor_config = next(s for s in config['sensors'] if s['deviceId'] == id)
     try:
@@ -61,6 +69,23 @@ def get_temperature(id: str):
     return
 
 
+def check_routines():
+    now = datetime.now()
+    timestamp = now.timestamp()
+    for r in config['routines']:
+        if r['type'] == 'cycle':
+            if r.get('lastCycle', 0) < (timestamp - r['timespan'] * 60) and int(timestamp/60) % r['timespan'] == 0:
+                make_history(r['sensorNames'])
+                try:
+                    print(f"{r['name'].capitalize()}: {int((timestamp-r['lastCycle']-10)/60)}:{int(timestamp-r['lastCycle']-10)%60} min since last run", flush=True)
+                except:
+                    pass
+                r['lastCycle'] = timestamp - 10 # -10 seconds are to account for eventual stack of miliseconds up to a full skip of one round
+        elif r['type'] == 'datetime':
+            pass # TODO Datetime routines rely on a specific date time cimbination to be triggered like cronjobs
+    return
+
+
 if __name__ == '__main__':
     while True:
         start = datetime.now().timestamp()
@@ -71,6 +96,6 @@ if __name__ == '__main__':
                 temperature = get_temperature(s['deviceId'])
                 if temperature is not None:
                     update_sensor(s['deviceId'], temperature)
+        check_routines()
         time.sleep(5 - (datetime.now().timestamp() - start))
-
     exit()

@@ -1,4 +1,16 @@
 {
+    "routines": [
+        {
+            "name": "temperature history",
+            "type": "cycle",
+            "timespan": 60,
+            "sensorNames": [
+                "water",
+                "air",
+                "basement"
+            ]
+        }
+    ],
     "sensors": [
         {
             "deviceId": "28-03179779c5de",
