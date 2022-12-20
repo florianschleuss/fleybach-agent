@@ -12,3 +12,17 @@ services:
       - CUSTOMER_DOMAIN
       - CUSTOMER_SECRET
       - AUTH_URL
+  # SMA Tripower and serial powermeter read out
+  power:
+    container_name: power
+    build: ./power
+    privileged: true
+    volumes:
+      - ./power:/usr/src/power
+      - ./utils:/usr/src/power/utils
+    environment:
+      - CUSTOMER_DOMAIN
+      - CUSTOMER_SECRET
+      - AUTH_URL
+      - SMA_MODBUS_IP
+      - SMA_MODBUS_PORT

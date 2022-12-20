@@ -1,0 +1,4 @@
+requests
+pyjwt
+
+pymodbus==2.3.0

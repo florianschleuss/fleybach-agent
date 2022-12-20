@@ -1,0 +1,208 @@
+[
+    {
+        "register": "30513",
+        "unit": "kWh",
+        "name": "totalProduction",
+        "calculationFactor": 1000,
+        "calculationOperand": "/",
+        "type": "solar"
+    },
+    {
+        "register": "30521",
+        "unit": "h",
+        "name": "uptime",
+        "calculationFactor": 3600,
+        "calculationOperand": "/",
+        "type": "solar"
+    },
+    {
+        "register": "30525",
+        "unit": "s",
+        "name": "uptimeFeedIn",
+        "calculationFactor": 3600,
+        "calculationOperand": "/",
+        "type": "solar"
+    },
+    {
+        "register": "30769",
+        "unit": "mA",
+        "name": "dcAIn",
+        "calculationFactor": 1000,
+        "calculationOperand": "/",
+        "type": "solar"
+    },
+    {
+        "register": "30771",
+        "unit": "V",
+        "name": "dcVIn",
+        "type": "solar"
+    },
+    {
+        "register": "30773",
+        "unit": "W",
+        "name": "dcWIn",
+        "type": "solar"
+    },
+    {
+        "register": "30775",
+        "unit": "W",
+        "name": "acWOut",
+        "type": "solar"
+    },
+    {
+        "register": "30777",
+        "unit": "W",
+        "name": "acWOutL1",
+        "type": "solar"
+    },
+    {
+        "register": "30779",
+        "unit": "W",
+        "name": "acWOutL2",
+        "type": "solar"
+    },
+    {
+        "register": "30781",
+        "unit": "W",
+        "name": "acWOutL3",
+        "type": "solar"
+    },
+    {
+        "register": "30783",
+        "unit": "V",
+        "name": "acVOutL1",
+        "type": "solar"
+    },
+    {
+        "register": "30785",
+        "unit": "V",
+        "name": "acVOutL2",
+        "type": "solar"
+    },
+    {
+        "register": "30787",
+        "unit": "V",
+        "name": "acVOutL3",
+        "type": "solar"
+    },
+    {
+        "register": "30789",
+        "unit": "V",
+        "name": "acVOutL1v2",
+        "type": "solar"
+    },
+    {
+        "register": "30791",
+        "unit": "V",
+        "name": "acVOutL2v3",
+        "type": "solar"
+    },
+    {
+        "register": "30793",
+        "unit": "V",
+        "name": "acVOutL3v1",
+        "type": "solar"
+    },
+    {
+        "register": "30795",
+        "unit": "mA",
+        "name": "acAOut",
+        "calculationFactor": 1000,
+        "calculationOperand": "/",
+        "type": "solar"
+    },
+    {
+        "register": "30803",
+        "unit": "mHz",
+        "name": "frequency",
+        "calculationFactor": 10,
+        "calculationOperand": "/",
+        "type": "solar"
+    },
+    {
+        "register": "30805",
+        "unit": "VAr",
+        "name": "reactive",
+        "type": "solar"
+    },
+    {
+        "register": "30807",
+        "unit": "VAr",
+        "name": "reactiveL1",
+        "type": "solar"
+    },
+    {
+        "register": "30809",
+        "unit": "VAr",
+        "name": "reactiveL2",
+        "type": "solar"
+    },
+    {
+        "register": "30811",
+        "unit": "VAr",
+        "name": "reactiveL3",
+        "type": "solar"
+    },
+    {
+        "register": "30813",
+        "unit": "VA",
+        "name": "apparent",
+        "type": "solar"
+    },
+    {
+        "register": "30815",
+        "unit": "VA",
+        "name": "apparentL1",
+        "type": "solar"
+    },
+    {
+        "register": "30817",
+        "unit": "VA",
+        "name": "apparentL2",
+        "type": "solar"
+    },
+    {
+        "register": "30819",
+        "unit": "VA",
+        "name": "apparentL3",
+        "type": "solar"
+    },
+    {
+        "register": "30953",
+        "unit": "°C",
+        "name": "inverterTemperature",
+        "calculationFactor": 10,
+        "calculationOperand": "/",
+        "type": "temperature"
+    },
+    {
+        "register": "30975",
+        "unit": "V",
+        "name": "innerCircuitV",
+        "type": "solar"
+    },
+    {
+        "register": "30977",
+        "unit": "mA",
+        "name": "acAOut",
+        "calculationFactor": 1000,
+        "calculationOperand": "/",
+        "type": "temperature"
+    },
+    {
+        "register": "30979",
+        "unit": "mA",
+        "name": "acAOut",
+        "calculationFactor": 1000,
+        "calculationOperand": "/",
+        "type": "temperature"
+    },
+    {
+        "register": "30981",
+        "unit": "mA",
+        "name": "acAOut",
+        "calculationFactor": 1000,
+        "calculationOperand": "/",
+        "type": "temperature"
+    }
+]

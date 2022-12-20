@@ -1,0 +1,145 @@
+{
+    "routines": [
+        {
+            "name": "solar history",
+            "type": "history",
+            "timespan": 1440,
+            "sensorNames": [
+                "totalProduction"
+            ]
+        },
+        {
+            "name": "power history",
+            "type": "history",
+            "timespan": 60,
+            "sensorNames": [
+            ]
+        }
+    ],
+    "sensors": [
+        {
+            "deviceId": "solar-totalProduction",
+            "name": "totalProduction"
+        },
+        {
+            "deviceId": "solar-uptime",
+            "name": "uptime"
+        },
+        {
+            "deviceId": "solar-uptimeFeedIn",
+            "name": "uptimeFeedIn"
+        },
+        {
+            "deviceId": "solar-dcAIn",
+            "name": "dcAIn"
+        },
+        {
+            "deviceId": "solar-dcVIn",
+            "name": "dcVIn"
+        },
+        {
+            "deviceId": "solar-dcWIn",
+            "name": "dcWIn"
+        },
+        {
+            "deviceId": "solar-acWOut",
+            "name": "acWOut"
+        },
+        {
+            "deviceId": "solar-acWOutL1",
+            "name": "acWOutL1"
+        },
+        {
+            "deviceId": "solar-acWOutL2",
+            "name": "acWOutL2"
+        },
+        {
+            "deviceId": "solar-acWOutL3",
+            "name": "acWOutL3"
+        },
+        {
+            "deviceId": "solar-acVOutL1",
+            "name": "acVOutL1"
+        },
+        {
+            "deviceId": "solar-acVOutL2",
+            "name": "acVOutL2"
+        },
+        {
+            "deviceId": "solar-acVOutL3",
+            "name": "acVOutL3"
+        },
+        {
+            "deviceId": "solar-acVOutL1v2",
+            "name": "acVOutL1v2"
+        },
+        {
+            "deviceId": "solar-acVOutL2v3",
+            "name": "acVOutL2v3"
+        },
+        {
+            "deviceId": "solar-acVOutL3v1",
+            "name": "acVOutL3v1"
+        },
+        {
+            "deviceId": "solar-acAOut",
+            "name": "acAOut"
+        },
+        {
+            "deviceId": "solar-frequency",
+            "name": "frequency"
+        },
+        {
+            "deviceId": "solar-reactive",
+            "name": "reactive"
+        },
+        {
+            "deviceId": "solar-reactiveL1",
+            "name": "reactiveL1"
+        },
+        {
+            "deviceId": "solar-reactiveL2",
+            "name": "reactiveL2"
+        },
+        {
+            "deviceId": "solar-reactiveL3",
+            "name": "reactiveL3"
+        },
+        {
+            "deviceId": "solar-apparent",
+            "name": "apparent"
+        },
+        {
+            "deviceId": "solar-apparentL1",
+            "name": "apparentL1"
+        },
+        {
+            "deviceId": "solar-apparentL2",
+            "name": "apparentL2"
+        },
+        {
+            "deviceId": "solar-apparentL3",
+            "name": "apparentL3"
+        },
+        {
+            "deviceId": "solar-inverterTemperature",
+            "name": "inverterTemperature"
+        },
+        {
+            "deviceId": "solar-innerCircuitV",
+            "name": "innerCircuitV"
+        },
+        {
+            "deviceId": "solar-acAOut",
+            "name": "acAOut"
+        },
+        {
+            "deviceId": "solar-acAOut",
+            "name": "acAOut"
+        },
+        {
+            "deviceId": "solar-acAOut",
+            "name": "acAOut"
+        }
+    ]
+}
