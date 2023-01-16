@@ -52,6 +52,8 @@ def update_sensor(id: str, name: str, value: Union[int, float], unit: str, type:
 
 
 def batch_update_sensor(sensors: List[Dict]):
+    if len(sensors) == 0:
+        return
     jwt.v()
     try:
         post = r.patch(f'http://{domain}/sensor/sensors?customer_id={jwt.token.customer_id}', json={
