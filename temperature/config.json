@@ -16,12 +16,12 @@
             "deviceId": "28-03179779c5de",
             "name": "water",
             "offset": 2,
-            "enabled": false
+            "enabled": true
         },
         {
             "deviceId": "28-0416a1bf2bff",
             "name": "air",
-            "enabled": false
+            "enabled": true
         },
         {
             "deviceId": "28-0317046838ff",

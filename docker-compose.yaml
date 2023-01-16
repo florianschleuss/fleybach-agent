@@ -3,6 +3,7 @@ services:
   # DS18B12 sensor read out
   temperature:
     container_name: temperature
+    restart: always
     build: ./temperature
     privileged: true
     volumes:
@@ -15,6 +16,7 @@ services:
   # SMA Tripower and serial powermeter read out
   power:
     container_name: power
+    restart: always
     build: ./power
     privileged: true
     volumes:

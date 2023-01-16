@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 import json
 import os
 import time
-from typing import Union
+from typing import Dict, List, Union
 
 import requests as r
 from pymodbus.client.sync import ModbusTcpClient
@@ -33,7 +33,7 @@ def update_sensor(id: str, name: str, value: Union[int, float], unit: str, type:
     sensor_config = next(s for s in config['sensors'] if s['deviceId'] == id)
     if sensor_config.get('offset') is not None:
         value = value + sensor_config['offset']
-
+    try:
     patch = r.patch(f'http://{domain}/sensor/sensors/{id}?customer_id={jwt.token.customer_id}', json={
         'value': value
     }, headers={'x-access-token': jwt.token._token})
@@ -45,14 +45,21 @@ def update_sensor(id: str, name: str, value: Union[int, float], unit: str, type:
             'unit': unit,
             'type': type
         }, headers={'x-access-token': jwt.token._token})
+    except r.exceptions.ConnectionError:
+        pass
+    return False  # TODO Validation of success
+
     return False  # TODO Validation of success
 
 
-def make_history(names: list):
+def make_history(names: List):
     jwt.v()
+    try:
     post = r.post(f'http://{domain}/sensor/sensors/names/history?customer_id={jwt.token.customer_id}', json={
         'names': names
     }, headers={'x-access-token': jwt.token._token})
+    except r.exceptions.ConnectionError:
+        pass
     return False  # TODO Validation of success
 
 
@@ -65,12 +72,12 @@ def get_inverter_data(name: str):
     response = client.read_holding_registers(
         register.id,
         register.length,
-        unit=1
+        unit=3
     )
     register.set_registers(response.registers)
     if register.is_null() or register.get_value() == -2147483648:
         return None
-    if (_f:= config_register.get('calculationFactor')) is not None and (_o:= config_register.get('calculationOperand')) is not None:
+    if (_f := config_register.get('calculationFactor')) is not None and (_o := config_register.get('calculationOperand')) is not None:
         if _o == '/':
             value = register.get_value()/_f
     else:
@@ -81,17 +88,17 @@ def get_inverter_data(name: str):
 def check_routines():
     now = datetime.now()
     timestamp = now.timestamp()
-    for r in config['routines']:
-        if r.get('lastCycle', 0) < (timestamp - r['timespan'] * 60) and int(timestamp/60) % r['timespan'] == 0:
-            if r['type'] == 'history':
-                make_history(r['sensorNames'])
+    for routine in config['routines']:
+        if routine.get('lastCycle', 0) < (timestamp - routine['timespan'] * 60) and int(timestamp/60) % routine['timespan'] == 0:
+            if routine['type'] == 'history':
+                make_history(routine['sensorNames'])
             try:
                 print(
-                    f"{r['name'].capitalize()}: {int((timestamp-r['lastCycle']-10)/60)}:{int(timestamp-r['lastCycle']-10)%60} min since last run", flush=True)
+                    f"{routine['name'].capitalize()}: {int((timestamp-routine['lastCycle']-10)/60)}:{int(timestamp-routine['lastCycle']-10)%60} min since last run", flush=True)
             except:
                 pass
             # -10 seconds are to account for eventual stack of miliseconds up to a full skip of one round
-            r['lastCycle'] = timestamp - 10
+            routine['lastCycle'] = timestamp - 10
     return
 
 
@@ -102,9 +109,9 @@ if __name__ == '__main__':
             if s.get('enabled', True):
                 if s.get('timeout', 0) > datetime.now().timestamp():
                     continue
-                if (data:= get_inverter_data(s['name'])) is not None:
-                    update_sensor(s['deviceId'], s['name'], data['value'], data['unit'], s.get('unit', data['type']))
+                if (data := get_inverter_data(s['name'])) is not None:
                 # elif: TODO powermeter     
         check_routines()
-        time.sleep(5 - (datetime.now().timestamp() - start))
+        if (delta := (datetime.now().timestamp() - start)) < 5:
+            time.sleep(5 - delta)
     exit()

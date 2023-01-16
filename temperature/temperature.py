@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 import json
 import os
 import time
-from typing import Union
+from typing import Dict, List, Union
 
 import requests as r
 
@@ -25,6 +25,7 @@ def update_sensor(id: str, value: Union[int, float]) -> bool:
         value = value + sensor_config['offset']
     unit = '°C'
     type = 'temperature'
+    try:
     patch = r.patch(f'http://{domain}/sensor/sensors/{id}?customer_id={jwt.token.customer_id}', json={
         'value': value
     }, headers={'x-access-token': jwt.token._token})
@@ -36,14 +37,20 @@ def update_sensor(id: str, value: Union[int, float]) -> bool:
             'unit': unit,
             'type': type
         }, headers={'x-access-token': jwt.token._token})
+        sensor_config['dbPresent'] = True
+    except r.exceptions.ConnectionError:
+        pass
     return False  # TODO Validation of success
 
 
-def make_history(names: list):
+def make_history(names: List):
     jwt.v()
+    try:
     post = r.post(f'http://{domain}/sensor/sensors/names/history?customer_id={jwt.token.customer_id}', json={
         'names': names
     }, headers={'x-access-token': jwt.token._token})
+    except r.exceptions.ConnectionError:
+        pass
     return False  # TODO Validation of success
 
 
@@ -72,17 +79,19 @@ def get_temperature(id: str):
 def check_routines():
     now = datetime.now()
     timestamp = now.timestamp()
-    for r in config['routines']:
-        if r['type'] == 'cycle':
-            if r.get('lastCycle', 0) < (timestamp - r['timespan'] * 60) and int(timestamp/60) % r['timespan'] == 0:
-                make_history(r['sensorNames'])
+    for routine in config['routines']:
+        if routine['type'] == 'cycle':
+            if routine.get('lastCycle', 0) < (timestamp - routine['timespan'] * 60) and int(timestamp/60) % routine['timespan'] == 0:
+                make_history(routine['sensorNames'])
                 try:
-                    print(f"{r['name'].capitalize()}: {int((timestamp-r['lastCycle']-10)/60)}:{int(timestamp-r['lastCycle']-10)%60} min since last run", flush=True)
+                    print(
+                        f"{routine['name'].capitalize()}: {int((timestamp-routine['lastCycle']-10)/60)}:{int(timestamp-routine['lastCycle']-10)%60} min since last run", flush=True)
                 except:
                     pass
-                r['lastCycle'] = timestamp - 10 # -10 seconds are to account for eventual stack of miliseconds up to a full skip of one round
-        elif r['type'] == 'datetime':
-            pass # TODO Datetime routines rely on a specific date time cimbination to be triggered like cronjobs
+                # -10 seconds are to account for eventual stack of miliseconds up to a full skip of one round
+                routine['lastCycle'] = timestamp - 10
+        elif routine['type'] == 'datetime':
+            pass  # TODO Datetime routines rely on a specific date time cimbination to be triggered like cronjobs
     return
 
 
@@ -93,9 +102,9 @@ if __name__ == '__main__':
             if s.get('enabled', True):
                 if s.get('timeout', 0) > datetime.now().timestamp():
                     continue
-                temperature = get_temperature(s['deviceId'])
-                if temperature is not None:
+                if (temperature := get_temperature(s['deviceId'])) is not None:
                     update_sensor(s['deviceId'], temperature)
         check_routines()
-        time.sleep(5 - (datetime.now().timestamp() - start))
+        if (delta := (datetime.now().timestamp() - start)) < 5:
+            time.sleep(5 - delta)
     exit()
