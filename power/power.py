@@ -101,17 +101,17 @@ def get_inverter_data(name: str):
 def check_routines():
     now = datetime.now()
     timestamp = now.timestamp()
-    for reg in config['routines']:
-        if reg.get('lastCycle', 0) < (timestamp - reg['timespan'] * 60) and int(timestamp/60) % reg['timespan'] == 0:
-            if reg['type'] == 'history':
-                make_history(reg['sensorNames'])
+    for routine in config['routines']:
+        if routine.get('lastCycle', 0) < (timestamp - routine['timespan'] * 60) and int(timestamp/60) % routine['timespan'] == 0:
+            if routine['type'] == 'history':
+                make_history(routine['sensorNames'])
             try:
                 print(
-                    f"{reg['name'].capitalize()}: {int((timestamp-reg['lastCycle']-10)/60)}:{int(timestamp-reg['lastCycle']-10)%60} min since last run", flush=True)
+                    f"{routine['name'].capitalize()}: {int((timestamp-routine['lastCycle']-10)/60)}:{int(timestamp-routine['lastCycle']-10)%60} min since last run", flush=True)
             except:
                 pass
             # -10 seconds are to account for eventual stack of miliseconds up to a full skip of one round
-            reg['lastCycle'] = timestamp - 10
+            routine['lastCycle'] = timestamp - 10
     return
 
 

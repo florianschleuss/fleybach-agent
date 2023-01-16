@@ -93,18 +93,18 @@ def get_temperature(id: str):
 def check_routines():
     now = datetime.now()
     timestamp = now.timestamp()
-    for r in config['routines']:
-        if r['type'] == 'cycle':
-            if r.get('lastCycle', 0) < (timestamp - r['timespan'] * 60) and int(timestamp/60) % r['timespan'] == 0:
-                make_history(r['sensorNames'])
+    for routine in config['routines']:
+        if routine['type'] == 'cycle':
+            if routine.get('lastCycle', 0) < (timestamp - routine['timespan'] * 60) and int(timestamp/60) % routine['timespan'] == 0:
+                make_history(routine['sensorNames'])
                 try:
                     print(
-                        f"{r['name'].capitalize()}: {int((timestamp-r['lastCycle']-10)/60)}:{int(timestamp-r['lastCycle']-10)%60} min since last run", flush=True)
+                        f"{routine['name'].capitalize()}: {int((timestamp-routine['lastCycle']-10)/60)}:{int(timestamp-routine['lastCycle']-10)%60} min since last run", flush=True)
                 except:
                     pass
                 # -10 seconds are to account for eventual stack of miliseconds up to a full skip of one round
-                r['lastCycle'] = timestamp - 10
-        elif r['type'] == 'datetime':
+                routine['lastCycle'] = timestamp - 10
+        elif routine['type'] == 'datetime':
             pass  # TODO Datetime routines rely on a specific date time cimbination to be triggered like cronjobs
     return
 
