@@ -128,18 +128,6 @@
         {
             "deviceId": "solar-innerCircuitV",
             "name": "innerCircuitV"
-        },
-        {
-            "deviceId": "solar-acAOut",
-            "name": "acAOut"
-        },
-        {
-            "deviceId": "solar-acAOut",
-            "name": "acAOut"
-        },
-        {
-            "deviceId": "solar-acAOut",
-            "name": "acAOut"
         }
     ]
 }

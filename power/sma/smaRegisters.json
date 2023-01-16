@@ -25,7 +25,7 @@
     },
     {
         "register": "30769",
-        "unit": "mA",
+        "unit": "A",
         "name": "dcAIn",
         "calculationFactor": 1000,
         "calculationOperand": "/",
@@ -35,6 +35,8 @@
         "register": "30771",
         "unit": "V",
         "name": "dcVIn",
+        "calculationFactor": 100,
+        "calculationOperand": "/",
         "type": "solar"
     },
     {
@@ -71,41 +73,53 @@
         "register": "30783",
         "unit": "V",
         "name": "acVOutL1",
-        "type": "solar"
+        "type": "solar",
+        "calculationFactor": 100,
+        "calculationOperand": "/"
     },
     {
         "register": "30785",
         "unit": "V",
         "name": "acVOutL2",
-        "type": "solar"
+        "type": "solar",
+        "calculationFactor": 100,
+        "calculationOperand": "/"
     },
     {
         "register": "30787",
         "unit": "V",
         "name": "acVOutL3",
-        "type": "solar"
+        "type": "solar",
+        "calculationFactor": 100,
+        "calculationOperand": "/"
     },
     {
         "register": "30789",
         "unit": "V",
         "name": "acVOutL1v2",
-        "type": "solar"
+        "type": "solar",
+        "calculationFactor": 100,
+        "calculationOperand": "/"
     },
     {
         "register": "30791",
         "unit": "V",
         "name": "acVOutL2v3",
-        "type": "solar"
+        "type": "solar",
+        "calculationFactor": 100,
+        "calculationOperand": "/"
     },
     {
         "register": "30793",
         "unit": "V",
         "name": "acVOutL3v1",
-        "type": "solar"
+        "type": "solar",
+        "calculationFactor": 100,
+        "calculationOperand": "/"
     },
     {
         "register": "30795",
-        "unit": "mA",
+        "unit": "A",
         "name": "acAOut",
         "calculationFactor": 1000,
         "calculationOperand": "/",
@@ -113,9 +127,9 @@
     },
     {
         "register": "30803",
-        "unit": "mHz",
+        "unit": "Hz",
         "name": "frequency",
-        "calculationFactor": 10,
+        "calculationFactor": 100,
         "calculationOperand": "/",
         "type": "solar"
     },
@@ -183,7 +197,7 @@
     },
     {
         "register": "30977",
-        "unit": "mA",
+        "unit": "A",
         "name": "acAOut",
         "calculationFactor": 1000,
         "calculationOperand": "/",
@@ -191,7 +205,7 @@
     },
     {
         "register": "30979",
-        "unit": "mA",
+        "unit": "A",
         "name": "acAOut",
         "calculationFactor": 1000,
         "calculationOperand": "/",
@@ -199,7 +213,7 @@
     },
     {
         "register": "30981",
-        "unit": "mA",
+        "unit": "A",
         "name": "acAOut",
         "calculationFactor": 1000,
         "calculationOperand": "/",
