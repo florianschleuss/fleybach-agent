@@ -26,29 +26,43 @@ def update_sensor(id: str, value: Union[int, float]) -> bool:
     unit = '°C'
     type = 'temperature'
     try:
-    patch = r.patch(f'http://{domain}/sensor/sensors/{id}?customer_id={jwt.token.customer_id}', json={
-        'value': value
-    }, headers={'x-access-token': jwt.token._token})
-    if patch.status_code == 404:
-        post = r.post(f'http://{domain}/sensor/sensors?customer_id={jwt.token.customer_id}', json={
-            'id': id,
-            'name': sensor_config['name'],
-            'value': value,
-            'unit': unit,
-            'type': type
+        patch = r.patch(f'http://{domain}/sensor/sensors/{id}?customer_id={jwt.token.customer_id}', json={
+            'value': value
         }, headers={'x-access-token': jwt.token._token})
+        if patch.status_code == 404:
+            post = r.post(f'http://{domain}/sensor/sensors?customer_id={jwt.token.customer_id}', json={
+                'id': id,
+                'name': sensor_config['name'],
+                'value': value,
+                'unit': unit,
+                'type': type
+            }, headers={'x-access-token': jwt.token._token})
         sensor_config['dbPresent'] = True
     except r.exceptions.ConnectionError:
         pass
     return False  # TODO Validation of success
 
 
+def batch_update_sensor(sensors: List[Dict]):
+    jwt.v()
+    try:
+        post = r.patch(f'http://{domain}/sensor/sensors?customer_id={jwt.token.customer_id}', json={
+            'sensors': sensors
+        }, headers={'x-access-token': jwt.token._token})
+    except r.exceptions.ConnectionError:
+        for sen in sensors:
+            sensor_config = next(
+                s for s in config['sensors'] if s['deviceId'] == sen['id'])
+            sensor_config['dbPresent'] = False
+    return False  # TODO Validation of success
+
+
 def make_history(names: List):
     jwt.v()
     try:
-    post = r.post(f'http://{domain}/sensor/sensors/names/history?customer_id={jwt.token.customer_id}', json={
-        'names': names
-    }, headers={'x-access-token': jwt.token._token})
+        post = r.post(f'http://{domain}/sensor/sensors/names/history?customer_id={jwt.token.customer_id}', json={
+            'names': names
+        }, headers={'x-access-token': jwt.token._token})
     except r.exceptions.ConnectionError:
         pass
     return False  # TODO Validation of success
@@ -79,18 +93,18 @@ def get_temperature(id: str):
 def check_routines():
     now = datetime.now()
     timestamp = now.timestamp()
-    for routine in config['routines']:
-        if routine['type'] == 'cycle':
-            if routine.get('lastCycle', 0) < (timestamp - routine['timespan'] * 60) and int(timestamp/60) % routine['timespan'] == 0:
-                make_history(routine['sensorNames'])
+    for r in config['routines']:
+        if r['type'] == 'cycle':
+            if r.get('lastCycle', 0) < (timestamp - r['timespan'] * 60) and int(timestamp/60) % r['timespan'] == 0:
+                make_history(r['sensorNames'])
                 try:
                     print(
-                        f"{routine['name'].capitalize()}: {int((timestamp-routine['lastCycle']-10)/60)}:{int(timestamp-routine['lastCycle']-10)%60} min since last run", flush=True)
+                        f"{r['name'].capitalize()}: {int((timestamp-r['lastCycle']-10)/60)}:{int(timestamp-r['lastCycle']-10)%60} min since last run", flush=True)
                 except:
                     pass
                 # -10 seconds are to account for eventual stack of miliseconds up to a full skip of one round
-                routine['lastCycle'] = timestamp - 10
-        elif routine['type'] == 'datetime':
+                r['lastCycle'] = timestamp - 10
+        elif r['type'] == 'datetime':
             pass  # TODO Datetime routines rely on a specific date time cimbination to be triggered like cronjobs
     return
 
@@ -98,12 +112,18 @@ def check_routines():
 if __name__ == '__main__':
     while True:
         start = datetime.now().timestamp()
+        sensors = []
         for s in config['sensors']:
             if s.get('enabled', True):
                 if s.get('timeout', 0) > datetime.now().timestamp():
                     continue
                 if (temperature := get_temperature(s['deviceId'])) is not None:
-                    update_sensor(s['deviceId'], temperature)
+                    if s.get('dbPresent', False):
+                        sensors.append(
+                            {'id': s['deviceId'], 'value': temperature})
+                    else:
+                        update_sensor(s['deviceId'], temperature)
+        batch_update_sensor(sensors=sensors)
         check_routines()
         if (delta := (datetime.now().timestamp() - start)) < 5:
             time.sleep(5 - delta)
