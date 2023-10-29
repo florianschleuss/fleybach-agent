@@ -1,4 +1,5 @@
 import time
+from typing import Dict
 import unittest
 import sys
 import os
@@ -128,6 +129,7 @@ class TestPowerSwitchable(unittest.TestCase):
 
 class TestLocalDevice(unittest.TestCase):
     def setUp(self):
+        GPIO.setmode(GPIO.BCM)  # type: ignore
         PowerSwitchable._set_hardware_io = dummy_true  # type: ignore
         self.sw = LocalDevice(name='Test widget',
                               power=100,
@@ -145,6 +147,22 @@ class TestLocalDevice(unittest.TestCase):
         self.assertTrue(self.sw.state)
         self.sw.set_state(False)
         self.assertFalse(self.sw.state)
+
+    def test_from_dict(self):
+        obj: Dict = {
+            'name': "TestDevice",
+            'power': 123,
+        }
+        osw: LocalDevice
+        with self.assertRaises(Exception) as e:
+            osw = LocalDevice.from_object(obj)
+        self.assertEqual('No gpio given', str(e.exception))
+        obj['gpio'] = 50
+        osw = LocalDevice.from_object(obj)
+        self.assertEqual(osw.name, "TestDevice")
+        self.assertEqual(osw.power, 123)
+        self.assertEqual(osw.power_all, 123)
+        self.assertEqual(osw._gpio, 50)
 
 
 class TestRemoteDevice(unittest.TestCase):
@@ -170,6 +188,30 @@ class TestRemoteDevice(unittest.TestCase):
         self.assertTrue(self.sw.state)
         self.sw.set_state(False)
         self.assertFalse(self.sw.state)
+
+    def test_from_dict(self):
+        obj: Dict = {
+            'name': "TestDevice",
+            'power': 123,
+            'host': "no-host"
+        }
+        osw: RemoteDevice
+        with self.assertRaises(Exception) as e:
+            osw = RemoteDevice.from_object(obj)
+        self.assertEqual('No device_type given', str(e.exception))
+        obj['device_type'] = "tasmota"
+        osw = RemoteDevice.from_object(obj)
+        self.assertEqual(osw.name, "TestDevice")
+        self.assertEqual(osw.power, 123)
+        self.assertEqual(osw.power_all, 123)
+        self.assertEqual(osw._host, "no-host")
+        self.assertEqual(osw._devcive_type, RemoteDeviceType.TASMOTA)
+
+        # Test dependency injection
+        osw = RemoteDevice.from_object(obj, dependencies=[
+            PowerSwitchable(name="Dependency",
+                            power=1)])
+        self.assertEqual(osw.power_all, 124)
 
 
 if __name__ == '__main__':

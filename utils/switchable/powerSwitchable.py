@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, TypeVar, Union
+from typing import Dict, List, Optional, TypeVar
 
 import requests
 from requests.exceptions import ConnectionError
@@ -8,6 +8,9 @@ from utils.switchable.switchable import Switchable
 import RPi.GPIO as GPIO
 
 PowerSwitchable = TypeVar('PowerSwitchable')
+LocalDevice = TypeVar('LocalDevice')
+RemoteDevice = TypeVar('RemoteDevice')
+RemoteDeviceType = TypeVar('RemoteDeviceType')
 GPIO.setmode(GPIO.BCM)  # type: ignore
 
 
@@ -16,7 +19,7 @@ class PowerSwitchable(Switchable):
                  name: str,
                  power: int,
                  power_off_tolerance: int = 0,
-                 dependencies: List[Union[Switchable, PowerSwitchable]] = [],
+                 dependencies: List[Switchable] = [],
                  shutdown_time: int = 0,
                  max_active_time: int = 86400,
                  min_active_time: int = 0,
@@ -54,7 +57,7 @@ class LocalDevice(PowerSwitchable):
                  power: int,
                  gpio: int,
                  power_off_tolerance: int = 0,
-                 dependencies: List[Union[Switchable, PowerSwitchable]] = [],
+                 dependencies: List[Switchable] = [],
                  shutdown_time: int = 0,
                  max_active_time: int = 86400,
                  min_active_time: int = 0,
@@ -75,7 +78,39 @@ class LocalDevice(PowerSwitchable):
         GPIO.setup(self._gpio, GPIO.OUT)  # type: ignore
         GPIO.output(gpio, GPIO.HIGH)  # type: ignore
 
+    @classmethod
+    def from_object(
+            cls,
+            object: Dict,
+            dependencies: Optional[List[Switchable]] = None
+    ) -> LocalDevice:
+        if 'name' not in object:
+            raise Exception("No name given")
+        if 'power' not in object:
+            raise Exception("No power given")
+        if 'gpio' not in object:
+            raise Exception("No gpio given")
+        device: LocalDevice = cls(name=object['name'],
+                                  power=object['power'],
+                                  gpio=object['gpio'])
+        if 'power_off_tolerance' in object:
+            device._power_off_tolerance = object['power_off_tolerance']
+        if 'shutdown_time' in object:
+            device._shutdown_time = object['shutdown_time']
+        if 'max_active_time' in object:
+            device._max_active_time = object['max_active_time']
+        if 'min_active_time' in object:
+            device._min_active_time = object['min_active_time']
+        if 'hysteresis' in object:
+            device._hysteresis = object['hysteresis']
+        if 're_hysteresis' in object:
+            device._re_hysteresis = object['re_hysteresis']
+        if dependencies:
+            device._dependencies = dependencies
+        return device
+
     # @Override
+
     def _set_hardware_io(self, state: bool) -> bool:
         # TODO: verify success
         if state:
@@ -89,6 +124,14 @@ class RemoteDeviceType(Enum):
     SONOFF = 0
     TASMOTA = 1
 
+    @classmethod
+    def from_str(cls, str: str) -> RemoteDeviceType:
+        if str.lower() == 'sonoff':
+            return cls.SONOFF
+        elif str.lower() == 'tasmota':
+            return cls.TASMOTA
+        raise Exception("No matching device type given")
+
 
 class RemoteDevice(PowerSwitchable):
     def __init__(self,
@@ -97,7 +140,7 @@ class RemoteDevice(PowerSwitchable):
                  host: str,
                  device_type: RemoteDeviceType,
                  power_off_tolerance: int = 0,
-                 dependencies: List[Union[Switchable, PowerSwitchable]] = [],
+                 dependencies: List[Switchable] = [],
                  shutdown_time: int = 0,
                  max_active_time: int = 86400,
                  min_active_time: int = 0,
@@ -116,6 +159,41 @@ class RemoteDevice(PowerSwitchable):
         self._host: str = host
 
         self._devcive_type: RemoteDeviceType = device_type
+
+    @classmethod
+    def from_object(
+        cls,
+        object: Dict,
+        dependencies: Optional[List[Switchable]] = None
+    ) -> RemoteDevice:
+        if 'name' not in object:
+            raise Exception("No name given")
+        if 'power' not in object:
+            raise Exception("No power given")
+        if 'host' not in object:
+            raise Exception("No host given")
+        if 'device_type' not in object:
+            raise Exception("No device_type given")
+        device: RemoteDevice = cls(
+            name=object['name'],
+            power=object['power'],
+            host=object['host'],
+            device_type=RemoteDeviceType.from_str(object['device_type']))
+        if 'power_off_tolerance' in object:
+            device._power_off_tolerance = object['power_off_tolerance']
+        if 'shutdown_time' in object:
+            device._shutdown_time = object['shutdown_time']
+        if 'max_active_time' in object:
+            device._max_active_time = object['max_active_time']
+        if 'min_active_time' in object:
+            device._min_active_time = object['min_active_time']
+        if 'hysteresis' in object:
+            device._hysteresis = object['hysteresis']
+        if 're_hysteresis' in object:
+            device._re_hysteresis = object['re_hysteresis']
+        if dependencies:
+            device._dependencies = dependencies
+        return device
 
     # @Override
     def _set_hardware_io(self, state: bool) -> bool:
