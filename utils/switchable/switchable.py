@@ -100,7 +100,6 @@ class Switchable:
             self._actuators.append(
                 Depender(name=user, dependency_type=DependencyType.USER))
             if self._shutdown_time != 0:
-                print('shutdown')
                 self._shutdown_timer = DelayTimer(timeout=self._shutdown_time,
                                                   userHandler=self.set_state,
                                                   kwargs={'new_state': False,
@@ -117,7 +116,6 @@ class Switchable:
                         d._dependers.remove(dep)
                         d.refresh_state()
 
-        self._state = new_state
         self.refresh_state()
         return self._state
 
