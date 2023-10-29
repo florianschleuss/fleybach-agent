@@ -3,6 +3,7 @@ import unittest
 import sys
 import os
 
+import RPi.GPIO as GPIO
 # Get the parent directory
 parent_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
@@ -11,6 +12,7 @@ sys.path.append(parent_dir)
 
 # fmt: off
 from utils.switchable import Switchable  # noqa
+from utils.switchable.powerSwitchable import PowerSwitchable, LocalDevice, RemoteDevice, RemoteDeviceType  # noqa
 # fmt: on
 
 
@@ -18,14 +20,12 @@ def dummy_true(*args, **kwargs) -> bool:
     return True
 
 
-Switchable._set_hardware_io = dummy_true  # type: ignore
-
-
 class TestSwitchable(unittest.TestCase):
     def get_time(self):
         return self.emulated_time
 
     def setUp(self):
+        Switchable._set_hardware_io = dummy_true  # type: ignore
         self.sw = Switchable(name='Test widget',
                              dependencies=[
                                   Switchable('Dependency')
@@ -94,6 +94,82 @@ class TestSwitchable(unittest.TestCase):
         time.sleep(0.2)
         self.assertFalse(self.sw.state)
         self.assertFalse(all(x.state for x in self.sw._dependencies))
+
+
+class TestPowerSwitchable(unittest.TestCase):
+    def setUp(self):
+        PowerSwitchable._set_hardware_io = dummy_true  # type: ignore
+        self.sw = PowerSwitchable(name='Test widget',
+                                  power=100,
+                                  dependencies=[
+                                      PowerSwitchable('Dependency', 50)])
+        return
+
+    def tearDown(self):
+        return
+
+    def test_name(self):
+        self.assertEqual(self.sw.name, 'Test widget')
+
+    def test_default_values(self):
+        self.assertFalse(self.sw.state)
+        self.assertEqual(self.sw.active_time, 0)
+        self.assertEqual(self.sw.power, 100)
+
+    def test_power_calc(self):
+        self.assertEqual(self.sw.power_all, 150)
+        self.sw._dependencies.append(PowerSwitchable('Dependency2', 20))
+        self.assertEqual(self.sw.power_all, 170)
+
+    def test_state(self):
+        self.sw.set_state(True)
+        self.assertTrue(self.sw.state)
+
+
+class TestLocalDevice(unittest.TestCase):
+    def setUp(self):
+        PowerSwitchable._set_hardware_io = dummy_true  # type: ignore
+        self.sw = LocalDevice(name='Test widget',
+                              power=100,
+                              gpio=23,
+                              dependencies=[
+                                  PowerSwitchable('Dependency', 50)])
+        return
+
+    def tearDown(self):
+        GPIO.cleanup()  # type: ignore
+        return
+
+    def test_gpio(self):
+        self.sw.set_state(True)
+        self.assertTrue(self.sw.state)
+        self.sw.set_state(False)
+        self.assertFalse(self.sw.state)
+
+
+class TestRemoteDevice(unittest.TestCase):
+    def setUp(self):
+        PowerSwitchable._set_hardware_io = dummy_true
+        self.sw = RemoteDevice(name='Test widget',
+                               power=100,
+                               host="iot-sonoff-1",
+                               device_type=RemoteDeviceType.SONOFF,
+                               dependencies=[
+                                   PowerSwitchable('Dependency', 50)])
+        return
+
+    def tearDown(self):
+        return
+
+    def test_state(self):
+        self.assertFalse(self.sw.set_state(True))
+        self.assertFalse(self.sw.state)
+        self.sw.set_state(False)
+        self.sw._host = "iot-sonoff-2"
+        self.sw.set_state(True)
+        self.assertTrue(self.sw.state)
+        self.sw.set_state(False)
+        self.assertFalse(self.sw.state)
 
 
 if __name__ == '__main__':
