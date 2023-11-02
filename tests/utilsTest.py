@@ -51,10 +51,10 @@ class TestSwitchable(unittest.TestCase):
         # Default user
         self.assertFalse(self.sw.state)
         self.assertFalse(all(x.state for x in self.sw._dependencies))
-        self.sw.set_state(True)
+        self.sw.set_state(True, user='Test')
         self.assertTrue(self.sw.state)
         self.assertTrue(all(x.state for x in self.sw._dependencies))
-        self.sw.set_state(False)
+        self.sw.set_state(False, user='Test')
         self.assertFalse(self.sw.state)
         self.assertFalse(all(x.state for x in self.sw._dependencies))
         # Multi user
@@ -72,23 +72,23 @@ class TestSwitchable(unittest.TestCase):
         self.assertFalse(all(x.state for x in self.sw._dependencies))
 
     def test_active_time(self,):
-        self.sw.set_state(True)
+        self.sw.set_state(True, user='Test')
         self.emulated_time += 20
         self.assertEqual(self.sw.active_time, 20)
         self.emulated_time += 30
-        self.sw.set_state(False)
+        self.sw.set_state(False, user='Test')
         self.assertEqual(self.sw.active_time, 50)
 
     def test_dependencies(self):
         self.assertFalse(all(x.state for x in self.sw._dependencies))
-        self.sw.set_state(True)
+        self.sw.set_state(True, user='Test')
         self.assertTrue(all(x.state for x in self.sw._dependencies))
-        self.sw.set_state(False)
+        self.sw.set_state(False, user='Test')
         self.assertFalse(all(x.state for x in self.sw._dependencies))
 
     def test_shutdown_timer(self):
         self.sw._shutdown_time = 1
-        self.sw.set_state(True)
+        self.sw.set_state(True, user='Test')
         time.sleep(0.9)
         self.assertTrue(self.sw.state)
         self.assertTrue(all(x.state for x in self.sw._dependencies))
@@ -123,7 +123,7 @@ class TestPowerSwitchable(unittest.TestCase):
         self.assertEqual(self.sw.power_all, 170)
 
     def test_state(self):
-        self.sw.set_state(True)
+        self.sw.set_state(True, user='Test')
         self.assertTrue(self.sw.state)
 
 
@@ -143,9 +143,9 @@ class TestLocalDevice(unittest.TestCase):
         return
 
     def test_gpio(self):
-        self.sw.set_state(True)
+        self.sw.set_state(True, user='Test')
         self.assertTrue(self.sw.state)
-        self.sw.set_state(False)
+        self.sw.set_state(False, user='Test')
         self.assertFalse(self.sw.state)
 
     def test_from_dict(self):
@@ -180,13 +180,13 @@ class TestRemoteDevice(unittest.TestCase):
         return
 
     def test_state(self):
-        self.assertFalse(self.sw.set_state(True))
+        self.assertFalse(self.sw.set_state(True, user='Test'))
         self.assertFalse(self.sw.state)
-        self.sw.set_state(False)
+        self.sw.set_state(False, user='Test')
         self.sw._host = "iot-sonoff-2"
-        self.sw.set_state(True)
+        self.sw.set_state(True, user='Test')
         self.assertTrue(self.sw.state)
-        self.sw.set_state(False)
+        self.sw.set_state(False, user='Test')
         self.assertFalse(self.sw.state)
 
     def test_from_dict(self):

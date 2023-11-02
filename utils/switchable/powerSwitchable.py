@@ -24,7 +24,8 @@ class PowerSwitchable(Switchable):
                  max_active_time: int = 86400,
                  min_active_time: int = 0,
                  hysteresis: int = 0,
-                 re_hysteresis: int = 0
+                 re_hysteresis: int = 0,
+                 importance: int = 0
                  ) -> None:
         super().__init__(name=name,
                          dependencies=dependencies,
@@ -32,7 +33,8 @@ class PowerSwitchable(Switchable):
                          max_active_time=max_active_time,
                          min_active_time=min_active_time,
                          hysteresis=hysteresis,
-                         re_hysteresis=re_hysteresis)
+                         re_hysteresis=re_hysteresis,
+                         importance=importance)
 
         # Power consumption of this particular SW
         self.power: int = power
@@ -62,7 +64,8 @@ class LocalDevice(PowerSwitchable):
                  max_active_time: int = 86400,
                  min_active_time: int = 0,
                  hysteresis: int = 0,
-                 re_hysteresis: int = 0) -> None:
+                 re_hysteresis: int = 0,
+                 importance: int = 0) -> None:
         super().__init__(name,
                          power,
                          power_off_tolerance,
@@ -71,7 +74,8 @@ class LocalDevice(PowerSwitchable):
                          max_active_time,
                          min_active_time,
                          hysteresis,
-                         re_hysteresis)
+                         re_hysteresis,
+                         importance)
 
         # GPIO pin to which the device is connected
         self._gpio: int = gpio
@@ -82,7 +86,8 @@ class LocalDevice(PowerSwitchable):
     def from_object(
             cls,
             object: Dict,
-            dependencies: Optional[List[Switchable]] = None
+            dependencies: Optional[List[Switchable]] = None,
+            updating_device: Optional[LocalDevice] = None
     ) -> LocalDevice:
         if 'name' not in object:
             raise Exception("No name given")
@@ -90,9 +95,12 @@ class LocalDevice(PowerSwitchable):
             raise Exception("No power given")
         if 'gpio' not in object:
             raise Exception("No gpio given")
-        device: LocalDevice = cls(name=object['name'],
-                                  power=object['power'],
-                                  gpio=object['gpio'])
+        if updating_device is None:
+            device: LocalDevice = cls(name=object['name'],
+                                      power=object['power'],
+                                      gpio=object['gpio'])
+        else:
+            device: LocalDevice = updating_device
         if 'power_off_tolerance' in object:
             device._power_off_tolerance = object['power_off_tolerance']
         if 'shutdown_time' in object:
@@ -145,7 +153,8 @@ class RemoteDevice(PowerSwitchable):
                  max_active_time: int = 86400,
                  min_active_time: int = 0,
                  hysteresis: int = 0,
-                 re_hysteresis: int = 0) -> None:
+                 re_hysteresis: int = 0,
+                 importance: int = 0) -> None:
         super().__init__(name,
                          power,
                          power_off_tolerance,
@@ -154,7 +163,8 @@ class RemoteDevice(PowerSwitchable):
                          max_active_time,
                          min_active_time,
                          hysteresis,
-                         re_hysteresis)
+                         re_hysteresis,
+                         importance)
 
         self._host: str = host
 
@@ -164,7 +174,8 @@ class RemoteDevice(PowerSwitchable):
     def from_object(
         cls,
         object: Dict,
-        dependencies: Optional[List[Switchable]] = None
+        dependencies: Optional[List[Switchable]] = None,
+        updating_device: Optional[RemoteDevice] = None
     ) -> RemoteDevice:
         if 'name' not in object:
             raise Exception("No name given")
@@ -174,6 +185,14 @@ class RemoteDevice(PowerSwitchable):
             raise Exception("No host given")
         if 'device_type' not in object:
             raise Exception("No device_type given")
+        if updating_device is None:
+            device: RemoteDevice = cls(
+                name=object['name'],
+                power=object['power'],
+                host=object['host'],
+                device_type=RemoteDeviceType.from_str(object['device_type']))
+        else:
+            device: RemoteDevice = updating_device
         device: RemoteDevice = cls(
             name=object['name'],
             power=object['power'],

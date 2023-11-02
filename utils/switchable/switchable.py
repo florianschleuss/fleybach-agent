@@ -41,7 +41,8 @@ class Switchable:
                  max_active_time: int = 86400,  # One day
                  min_active_time: int = 0,
                  hysteresis: int = 0,
-                 re_hysteresis: int = 0
+                 re_hysteresis: int = 0,
+                 importance: int = 0
                  ) -> None:
         # Displayed name of SW
         self.name: str = name
@@ -73,11 +74,14 @@ class Switchable:
         self._shutdown_time: int = shutdown_time
         self._shutdown_timer: Optional[DelayTimer] = None
 
-        # Min. active between on->off
+        # Min. active between on->off in sec
         self._hysteresis: int = hysteresis
 
-        # Min. deactive between off->on
+        # Min. deactive between off->on in sec
         self._re_hysteresis: int = re_hysteresis
+
+        # Value to describe if the SW is more or less important than others
+        self._importance: int = importance
         return
 
     @property
@@ -99,6 +103,7 @@ class Switchable:
                     d.refresh_state()
             self._actuators.append(
                 Depender(name=user, dependency_type=DependencyType.USER))
+            # TODO dependency type correct
             if self._shutdown_time != 0:
                 self._shutdown_timer = DelayTimer(timeout=self._shutdown_time,
                                                   userHandler=self.set_state,
@@ -110,6 +115,7 @@ class Switchable:
                 return False
             self._actuators.remove(
                 Depender(name=user, dependency_type=DependencyType.USER))
+            # TODO dependency type correct
             if len(self._dependencies) != 0 and len(self._actuators) == 0:
                 for d in self._dependencies:
                     if (dep := self.to_depender()) in d._dependers:
@@ -122,7 +128,9 @@ class Switchable:
     @property
     def active_time(self) -> int:
         '''
-        Returns the time the device is active.
+        Calculates the time the device is active.
+
+        :return: Time the device is active.
         '''
         active_time: int = self._active_time
         if self._state:
@@ -132,8 +140,10 @@ class Switchable:
     @property
     def rest_active_time(self) -> int:
         '''
-        Returns rest time to fulfill min_active_time requriement in .
+        Returns rest time to fulfill min_active_time requriement.
         Returns 0 if no need for activation.
+
+        :return: The rest time the device needs to be active
         '''
         rest_time: int = self._max_active_time - self.active_time
         if self._min_active_time < self.active_time and rest_time < 0:
@@ -141,7 +151,8 @@ class Switchable:
         return self._max_active_time - self.active_time
 
     def reset(self):
-        '''Reset the values for a daily reset routine
+        '''
+        Reset the values for a daily reset routine.
         '''
         self._active_time: int = 0
         if self._last_switch != 0:
@@ -151,13 +162,22 @@ class Switchable:
 
     def to_depender(self,
                     dependency_type: DependencyType =
-                    DependencyType.AUTOMATIC):
-        '''Conversion to depender class
+                    DependencyType.AUTOMATIC) -> Depender:
+        '''
+        Conversion to depender class
+
+        :param dependency_type: DependencyType to know the type of relation
+
+        :return: A Depender object
         '''
         return Depender(name=self.name, dependency_type=dependency_type)
 
-    def _set_hardware_io(self, state: bool) -> bool:
-        '''Placeholder for later hardware switching functionallity
+        '''
+        Placeholder for later hardware switching functionallity
+
+        :param state: State to which it should be set
+
+        :return: Success or failure
         '''
         return False
 

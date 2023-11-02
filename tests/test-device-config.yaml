@@ -1,0 +1,21 @@
+local_devices:
+  - name: a
+    gpio: 50
+    power: 50
+    power_off_tolerance: 10
+    hysteresis: 2
+    re_hysteresis: 3
+    min_active_time: 1
+    max_active_time: 100
+    shutdown_time: 0
+  - name: b
+    gpio: 51
+    power: 20
+    dependencies:
+      - a
+
+remote_devices:
+  - name: c
+    power: 10
+    host: iot-sonoff-2
+    device_type: sonoff

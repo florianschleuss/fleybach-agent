@@ -28,3 +28,18 @@ services:
       - AUTH_URL
       - SMA_MODBUS_IP
       - SMA_MODBUS_PORT
+  # Websocket endpoint
+  device:
+    container_name: device
+    restart: always
+    build: ./device
+    privileged: true
+    volumes:
+      - ./device:/usr/src/device
+      - ./utils:/usr/src/device/utils
+    environment:
+      - CUSTOMER_DOMAIN
+      - CUSTOMER_SECRET
+      - AUTH_URL
+      - SMA_MODBUS_IP
+      - SMA_MODBUS_PORT

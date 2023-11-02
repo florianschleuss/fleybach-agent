@@ -5,8 +5,12 @@ from utilsTest import TestLocalDevice, TestPowerSwitchable, TestRemoteDevice, Te
 if __name__ == "__main__":
 
     loader = TestLoader()
-    tests = [TestSwitchable, TestPowerSwitchable,
-             TestLocalDevice, TestRemoteDevice]
+    tests = [TestSwitchable,
+             TestPowerSwitchable,
+             TestLocalDevice,
+             TestRemoteDevice,
+             TestDevice,
+             ]
     suite = TestSuite(loader.loadTestsFromTestCase(test)
                       for test in (tests))
 
