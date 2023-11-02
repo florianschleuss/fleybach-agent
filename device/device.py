@@ -3,6 +3,7 @@ import os
 from typing import Dict, List, Optional
 import yaml
 
+from utils.reason import ReasonFlow
 from utils.switchable.powerSwitchable import LocalDevice, PowerSwitchable, RemoteDevice  # noqa
 
 
@@ -33,6 +34,7 @@ class DeviceController:
     def _devices_in_relevance_order(self,
                                     state: bool = False,
                                     reverse: bool = False,
+                                    reason_flow: Optional[ReasonFlow] = None,
                                     ) -> List[PowerSwitchable]:
         """
         Returns a list of devices in a specific order based on their relevance.
@@ -49,7 +51,39 @@ class DeviceController:
             devices,
             key=lambda device: (device._importance, device.rest_active_time),
             reverse=not reverse)
+        if reason_flow is not None:
+            reason_flow.add_reason(
+                f"Relevant devices in state '{state}' are {[d.name for d in devices]} (reverse: {reverse})")  # noqa
         return devices
+
+    def _deadline_check(self) -> None:
+        # log('Deadline check run', ['info', 'deadline-check'])
+
+        # for name, device in self.devices.items():
+        #     if device.get_rest_time() > 0:
+        #         device.manual_switch(True, 'DeadlineCheck')
+        #         DelayTimer(device.get_rest_time(), device.manual_switch, [
+        #                    False, 'DeadlineCheck'])
+        #         rest_time_str: str = "{}:{}".format(
+        #             int(device.get_rest_time() / 60),
+        #             device.get_rest_time() % 60)
+        #         log('{} needed {} more time to fullfill worktime for today'
+        #             .format(device.get_name().replace("_", "-")
+        #                     .capitalize(), rest_time_str),
+        #             ['info', 'deadline-check'])
+
+        # # Log day-summary
+        # for name, device in self.devices.items():
+        #     worked_time: int = device.get_worked_time()
+        #     worked_str: str = "{}:{}:{}".format(
+        #         int(worked_time / 3600), int(worked_time % 3600 / 60),
+        #         worked_time % 3600 % 60)
+        #     log('{} run for {} today'.format(device.get_name()
+        #                                      .replace("_", "-")
+        #                                      .capitalize(), worked_str),
+        #         ['info', 'deadline-check'])
+        return
+
     def update_devices_from_config(
             self,
             devices: Dict[str, PowerSwitchable] = {}
@@ -106,18 +140,26 @@ class DeviceController:
         available_power = sum(self._avrg_power_consumtion) / \
             len(self._avrg_power_consumtion) * -1
 
+        # ReasonFlow to store all decisions made througout the process
+        reason_flow: ReasonFlow = ReasonFlow(
+            name=f"Tick at {datetime.now()}",
+            initial_comment=f"Tick with {available_power} available power")
+
         # Not enough power present
         if available_power <= 0:
             devices = self._devices_in_relevance_order(state=True,
-                                                       reverse=True)
+                                                       reverse=True,
+                                                       reason_flow=reason_flow)
             for device in devices:
                 if device._power_off_tolerance > available_power:
                     if device.set_state(False,
+                                        user='Automation',
+                                        reason_flow=reason_flow.split(f"Try to set state to '{False}' for '{device.name}' with user 'Automation'")):  # noqa
                         current_power_consumption -= device.power_all
         # To much power present
         else:
             devices = self._devices_in_relevance_order(
-                state=False, reverse=False)
+                state=False, reverse=False, reason_flow=reason_flow)
 
             for device in devices:
                 if (
@@ -125,8 +167,13 @@ class DeviceController:
                     and
                     device.rest_active_time > 0
                 ):
+                    drf = reason_flow.split(f"Try to set state to '{True}' for '{device.name}' requiring {device.power_all} power with user 'Automation'")  # noqa
                     if device.set_state(True,
-                                        user='Automation')
+                                        user='Automation',
+                                        reason_flow=drf):
                         available_power -= device.power_all
 
         # TODO deadline check
+        # if datetime.now().hour == 17 and not self.deadline_check:
+        #     self.deadline_check = True
+        #     self._deadline_check()

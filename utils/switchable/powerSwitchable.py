@@ -3,6 +3,8 @@ from typing import Dict, List, Optional, TypeVar
 
 import requests
 from requests.exceptions import ConnectionError
+from utils.event import EventCategory
+from utils.reason import ReasonFlow
 from utils.switchable.switchable import Switchable
 
 import RPi.GPIO as GPIO
@@ -119,7 +121,9 @@ class LocalDevice(PowerSwitchable):
 
     # @Override
 
-    def _set_hardware_io(self, state: bool) -> bool:
+    def _set_hardware_io(self,
+                         state: bool,
+                         reason_flow: Optional[ReasonFlow] = None) -> bool:
         # TODO: verify success
         if state:
             GPIO.output(self._gpio, GPIO.LOW)  # type: ignore
@@ -215,7 +219,9 @@ class RemoteDevice(PowerSwitchable):
         return device
 
     # @Override
-    def _set_hardware_io(self, state: bool) -> bool:
+    def _set_hardware_io(self,
+                         state: bool,
+                         reason_flow: Optional[ReasonFlow] = None) -> bool:
         url_params: str = ""
         if self._devcive_type == RemoteDeviceType.SONOFF:
             if state:
@@ -234,5 +240,11 @@ class RemoteDevice(PowerSwitchable):
             if r.status_code == 200:
                 return True
         except ConnectionError as e:
+            if reason_flow is not None:
+                reason_flow.add_reason(f"Connection error for {self.name} to host {self._host} trying to switch to {state}\n{e}")  # noqa
+                reason_flow.to_event(EventCategory.IMPORTANT)
             return False
+        if reason_flow is not None:
+            reason_flow.add_reason(f"Unsuccessful switching for {self.name} to host {self._host} trying to switch to {state}")  # noqa
+            reason_flow.to_event(EventCategory.IMPORTANT)
         return False
