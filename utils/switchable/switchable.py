@@ -74,6 +74,8 @@ class Switchable:
         # Automatic shutdown after x seconds
         self._shutdown_time: int = shutdown_time
         self._shutdown_timer: Optional[DelayTimer] = None
+        # Internal variable to keep track of a possible restart_timer
+        self._restart_timer: Optional[DelayTimer] = None
 
         # Min. active between on->off in sec
         self._hysteresis: int = hysteresis
@@ -92,9 +94,13 @@ class Switchable:
     def set_state(self,
                   new_state: bool,
                   user: str,
+                  timer: Optional[int] = None,
                   reason_flow: Optional[ReasonFlow] = None) -> bool:
         '''
         Handles state changing with actuator awareness.
+
+        :param user: The user/actuator that initiated the operation
+        :param timer: Optional timer to revert the operation done after x sec
 
         :return: Value that is set after validation
         '''
@@ -122,13 +128,17 @@ class Switchable:
                             rf = None
                         d.refresh_state(reason_flow=rf)
             self._actuators.append(
-                Depender(name=user, dependency_type=DependencyType.USER))
+                Depender(name=user, dependency_type=DependencyType.AUTOMATIC))
             # TODO dependency type correct
-            if self._shutdown_time != 0:
-                self._shutdown_timer = DelayTimer(timeout=self._shutdown_time,
+            if self._restart_timer is not None:
+                self._restart_timer.stop()
+                self._restart_timer = None
+            if self._shutdown_time != 0 or timer is not None:
+                self._shutdown_timer = DelayTimer(timeout=self._shutdown_time if timer is None else timer,
                                                   userHandler=self.set_state,
                                                   kwargs={'new_state': False,
-                                                          'user': user})  # noqa
+                                                          'user': user,
+                                                          'reason_flow': reason_flow})
 
         else:  # Switch off
             if self._last_switch > (time.time() - self._hysteresis):
@@ -136,8 +146,18 @@ class Switchable:
                     reason_flow.add_reason(f"Hysteresis blocked attempt. hyst {int(self._hysteresis/60)} min vs. last_switch {int((time.time()-self._last_switch)/60)} min")  # noqa
                     reason_flow.to_event(EventCategory.INFO)
                 return False
-            self._actuators.remove(
-                Depender(name=user, dependency_type=DependencyType.USER))
+            if self._shutdown_timer is not None and timer is None:
+                self._shutdown_timer.stop()
+                self._shutdown_timer = None
+            if timer is not None:
+                self._restart_timer = DelayTimer(timeout=timer,
+                                                 userHandler=self.set_state,
+                                                 kwargs={'new_state': True,
+                                                         'user': user,
+                                                         'reason_flow': reason_flow})
+            if Depender(name=user, dependency_type=DependencyType.AUTOMATIC) in self._actuators:
+                self._actuators.remove(
+                    Depender(name=user, dependency_type=DependencyType.AUTOMATIC))
             # TODO dependency type correct
             if len(self._dependencies) != 0 and len(self._actuators) == 0:
                 if reason_flow is not None:

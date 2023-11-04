@@ -3,6 +3,8 @@ from typing import Dict
 import unittest
 import sys
 import os
+from unittest import mock
+from unittest.mock import MagicMock, Mock, patch
 
 import RPi.GPIO as GPIO
 # Get the parent directory
@@ -21,7 +23,11 @@ def dummy_true(*args, **kwargs) -> bool:
     return True
 
 
+DEBUG: bool = True
+
+
 class TestSwitchable(unittest.TestCase):
+    # TODO: restart timer, what happens if timers are canceled by new action
     def get_time(self):
         return self.emulated_time
 
@@ -57,7 +63,13 @@ class TestSwitchable(unittest.TestCase):
         self.sw.set_state(False, user='Test')
         self.assertFalse(self.sw.state)
         self.assertFalse(all(x.state for x in self.sw._dependencies))
-        # Multi user
+
+    def test_state_change_doubled(self):
+        self.sw.set_state(False, user='Test')
+        self.assertFalse(self.sw.state)
+        self.assertFalse(all(x.state for x in self.sw._dependencies))
+
+    def test_multi_user_state_change(self):
         self.sw.set_state(True, user='1')
         self.assertTrue(self.sw.state)
         self.assertTrue(all(x.state for x in self.sw._dependencies))
@@ -86,15 +98,26 @@ class TestSwitchable(unittest.TestCase):
         self.sw.set_state(False, user='Test')
         self.assertFalse(all(x.state for x in self.sw._dependencies))
 
-    def test_shutdown_timer(self):
+    # @mock.patch.dict(os.environ, {"TESTING_ENV": str(DEBUG)})
+    def test_timer(self):
+        # Test automatic and manual timer
         self.sw._shutdown_time = 1
+        self.swT = Switchable(name='Test widget true')
+        self.swF = Switchable(name='Test widget false')
+        self.swF.set_state(True, user='TestFalse')
         self.sw.set_state(True, user='Test')
-        time.sleep(0.9)
+        self.swT.set_state(True, user='TestTrue', timer=1)
+        self.swF.set_state(False, user='TestFalse', timer=1)
+        time.sleep(0.5)
         self.assertTrue(self.sw.state)
         self.assertTrue(all(x.state for x in self.sw._dependencies))
-        time.sleep(0.2)
+        self.assertTrue(self.swT.state)
+        self.assertFalse(self.swF.state)
+        time.sleep(0.5)
         self.assertFalse(self.sw.state)
         self.assertFalse(all(x.state for x in self.sw._dependencies))
+        self.assertFalse(self.swT.state)
+        self.assertTrue(self.swF.state)
 
 
 class TestPowerSwitchable(unittest.TestCase):
@@ -170,7 +193,7 @@ class TestRemoteDevice(unittest.TestCase):
         PowerSwitchable._set_hardware_io = dummy_true
         self.sw = RemoteDevice(name='Test widget',
                                power=100,
-                               host="iot-sonoff-1",
+                               host="iot-1",
                                device_type=RemoteDeviceType.SONOFF,
                                dependencies=[
                                    PowerSwitchable('Dependency', 50)])
@@ -179,15 +202,24 @@ class TestRemoteDevice(unittest.TestCase):
     def tearDown(self):
         return
 
-    def test_state(self):
+    @patch('requests.get')
+    def test_state(self, mock_post):
         self.assertFalse(self.sw.set_state(True, user='Test'))
         self.assertFalse(self.sw.state)
         self.sw.set_state(False, user='Test')
-        self.sw._host = "iot-sonoff-2"
+
+        # Mock the 'get' method of the requests library
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
         self.sw.set_state(True, user='Test')
         self.assertTrue(self.sw.state)
+        mock_post.assert_called_with("http://iot-1/control?cmd=GPIO,12,1")
+
         self.sw.set_state(False, user='Test')
         self.assertFalse(self.sw.state)
+        mock_post.assert_called_with("http://iot-1/control?cmd=GPIO,12,0")
 
     def test_from_dict(self):
         obj: Dict = {

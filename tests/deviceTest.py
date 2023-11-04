@@ -21,7 +21,7 @@ import device.device  # noqa
 DEBUG: bool = True
 
 
-@mock.patch.dict(os.environ, {"TESTING_ENV": str(DEBUG)})
+# @mock.patch.dict(os.environ, {"TESTING_ENV": str(DEBUG)})
 class TestDevice(unittest.TestCase):
     def setUp(self):
         self.dc = device.device.DeviceController()
