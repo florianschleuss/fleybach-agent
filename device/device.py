@@ -1,9 +1,8 @@
 import datetime
-import logging
 import requests
 import os
 import time
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 import yaml
 import socketio
 
@@ -46,7 +45,7 @@ class DeviceController:
         if device_config_path is not None:
             self._device_config_path = device_config_path
 
-        # Device list to pre-populate the device list
+        # Device list to pre-populate the device list. Key is device_name
         self._devices: Dict[str, PowerSwitchable]
         if devices is None:
             self._devices = self.update_devices_from_config()
@@ -141,6 +140,14 @@ class DeviceController:
     @property
     def device_list(self) -> List[str]:
         return list(self._devices.keys())
+
+    def get_device_by_name(self, name: str) -> PowerSwitchable:
+        """
+        :return: Returns the device
+        """
+        if not self.has_device(name):
+            raise Exception("Device not in DeviceController")
+        return self._devices[name]
 
     def safety_sensor_list(self) -> List[str]:
         sensors = []
@@ -398,10 +405,10 @@ def handle_task_event(data: dict):
     """
     Takes the task events with the data and hadles all the parsing into the appropriat actions
 
-    :param data: Data with device_id, action and needed params to execute action
+    :param data: Data with device_name, action and needed params to execute action
     """
     task: Task = Task.from_object(data)
-    if not dc.has_device(task.device_id):
+    if not dc.has_device(task.device_name):
         logger.warning("Device not in DeviceController")
         return ReturnObject(status_code=422, error_code='deviceNotFound', message="The device is not listed").to_dict()
     if not task.verify_action_params():
@@ -410,28 +417,32 @@ def handle_task_event(data: dict):
 
     if task.action is Action.SWITCH:
         if dc.switch_device(
-                device_name=task.device_id,
-                user=task.action_args['user']):  # type: ignore
+                device_name=task.device_name,
+                user=task.action_args['user']):
             return ReturnObject(status_code=200).to_dict()
     elif task.action is Action.ON:
         if dc.switch_device(
-                device_name=task.device_id,
-                user=task.action_args['user'],  # type: ignore
+                device_name=task.device_name,
+                user=task.action_args['user'],
                 new_state=True):
             return ReturnObject(status_code=200).to_dict()
     elif task.action is Action.OFF:
         if dc.switch_device(
-                device_name=task.device_id,
-                user=task.action_args['user'],  # type: ignore
+                device_name=task.device_name,
+                user=task.action_args['user'],
                 new_state=False):
             return ReturnObject(status_code=200).to_dict()
     elif task.action is Action.TIMER:
         if dc.switch_device(
-                device_name=task.device_id,
-                user=task.action_args['user'],  # type: ignore
-                new_state=task.action_args['state'],  # type: ignore
-                timer_seconds=task.action_args['delaySeconds']):  # type: ignore
+                device_name=task.device_name,
+                user=task.action_args['user'],
+                new_state=task.action_args['state'],
+                timer_seconds=task.action_args['delaySeconds']):
             return ReturnObject(status_code=200).to_dict()
+    elif task.action is Action.STATE:
+        device = dc.get_device_by_name(task.device_name)
+        details = task.action_args.get('details', False)
+        return ReturnObject(status_code=200, data=device.to_dict(full=details)).to_dict()
 
     return ReturnObject(status_code=422, error_code='failedAction', message="The action was not successful. Refer to logs").to_dict()
 

@@ -30,6 +30,7 @@ Action.SWITCH
 Action.ON
 Action.OFF
 Action.TIMER
+Action.STATE
 ```
 
 ## License

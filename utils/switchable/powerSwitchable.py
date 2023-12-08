@@ -42,6 +42,13 @@ class PowerSwitchable(Switchable):
                 power_all += d.power_all
         return power_all
 
+    def to_dict(self, full=False) -> Dict:
+        device_dict = super().to_dict(full=full)
+        device_dict['power'] = self.power
+        device_dict['power_all'] = self.power_all
+        device_dict['power_off_tolerance'] = self._power_off_tolerance
+        return device_dict
+
 
 class LocalDevice(PowerSwitchable):
     def __init__(self,
@@ -83,9 +90,9 @@ class LocalDevice(PowerSwitchable):
         if 'min_active_time_seconds' in object:
             device._min_active_time_seconds = object['min_active_time_seconds']
         if 'hysteresis_seconds' in object:
-            device._hysteresis = object['hysteresis_seconds']
+            device._hysteresis_seconds = object['hysteresis_seconds']
         if 're_hysteresis_seconds' in object:
-            device._re_hysteresis = object['re_hysteresis_seconds']
+            device._re_hysteresis_seconds = object['re_hysteresis_seconds']
         if 'importance' in object:
             device._importance = object['importance']
         if 'temperature_safety' in object:
@@ -95,6 +102,13 @@ class LocalDevice(PowerSwitchable):
         if dependencies:
             device._dependencies = dependencies
         return device
+
+    # @Override
+
+    def to_dict(self, full=False) -> Dict:
+        device_dict = super().to_dict(full=full)
+        device_dict['gpio'] = self._gpio
+        return device_dict
 
     # @Override
 
@@ -110,8 +124,8 @@ class LocalDevice(PowerSwitchable):
 
 
 class RemoteDeviceType(Enum):
-    SONOFF = 0
-    TASMOTA = 1
+    SONOFF = 'sonoff'
+    TASMOTA = 'tasmota'
 
     @classmethod
     def from_str(cls, str: str) -> RemoteDeviceType:
@@ -133,7 +147,7 @@ class RemoteDevice(PowerSwitchable):
 
         self._host: str = host
 
-        self._devcive_type: RemoteDeviceType = device_type
+        self._device_type: RemoteDeviceType = device_type
 
     @classmethod
     def from_object(
@@ -172,9 +186,9 @@ class RemoteDevice(PowerSwitchable):
         if 'min_active_time_seconds' in object:
             device._min_active_time_seconds = object['min_active_time_seconds']
         if 'hysteresis_seconds' in object:
-            device._hysteresis = object['hysteresis_seconds']
+            device._hysteresis_seconds = object['hysteresis_seconds']
         if 're_hysteresis_seconds' in object:
-            device._re_hysteresis = object['re_hysteresis_seconds']
+            device._re_hysteresis_seconds = object['re_hysteresis_seconds']
         if 'importance' in object:
             device._importance = object['importance']
         if 'temperature_safety' in object:
@@ -185,17 +199,25 @@ class RemoteDevice(PowerSwitchable):
             device._dependencies = dependencies
         return device
 
+        # @Override
+
+    def to_dict(self, full=False) -> Dict:
+        device_dict = super().to_dict(full=full)
+        device_dict['host'] = self._host
+        device_dict['device_type'] = str(self._device_type)
+        return device_dict
+
     # @Override
     def _set_hardware_io(self,
                          state: bool,
                          reason_flow: Optional[ReasonFlow] = None) -> bool:
         url_params: str = ""
-        if self._devcive_type == RemoteDeviceType.SONOFF:
+        if self._device_type == RemoteDeviceType.SONOFF:
             if state:
                 url_params = "control?cmd=GPIO,12,1"
             else:
                 url_params = "control?cmd=GPIO,12,0"
-        elif self._devcive_type == RemoteDeviceType.TASMOTA:
+        elif self._device_type == RemoteDeviceType.TASMOTA:
             if state:
                 url_params = "cm?cmnd=Power%20on"
             else:

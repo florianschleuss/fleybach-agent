@@ -1,4 +1,5 @@
 from threading import Timer
+import time
 from typing import Dict, List, Any, Callable, Optional
 
 
@@ -10,9 +11,13 @@ class DelayTimer:
         self.timeout = timeout
         self.handler = userHandler
         self.timer = Timer(self.timeout, self.handler, args, kwargs)
+        self._startet_at = time.time()
         self.timer.start()
         return
 
     def stop(self):
         self.timer.cancel()
         return
+
+    def rest_time(self) -> int:
+        return self.timeout - int(time.time()-self._startet_at)

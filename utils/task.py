@@ -9,6 +9,7 @@ class Action(Enum):
     ON = 'on'
     OFF = 'off'
     TIMER = 'timer'
+    STATE = 'state'
 
     @staticmethod
     def from_str(action: str):
@@ -20,40 +21,43 @@ class Action(Enum):
             return Action.OFF
         elif action in ('timer'):
             return Action.TIMER
+        elif action in ('state'):
+            return Action.STATE
         else:
             raise Exception("No matching action")
 
 
 class Task():
     def __init__(self,
-                 device_id: str,
+                 device_name: str,
                  action: Action,
-                 action_args: Optional[Dict] = None) -> None:
+                 action_args: Dict = {}) -> None:
 
-        self.device_id: str = device_id
+        self.device_name: str = device_name
         self.action: Action = action
-        self.action_args: Optional[Dict] = action_args
+        self.action_args: Dict = action_args
 
     @classmethod
     def from_object(
             cls,
             object: Dict
     ) -> Task:
-        if 'deviceId' not in object:
-            raise Exception("No deviceId given")
+        if 'deviceName' not in object:
+            raise Exception("No deviceName given")
         if 'action' not in object:
             raise Exception("No action given")
-        task: Task = cls(device_id=object['deviceId'],
+        task: Task = cls(device_name=object['deviceName'],
                          action=Action.from_str(object['action']))
-        if 'args' in object:
-            task.action_args = object['args']
+        task.action_args = object.get('args', {})
         return task
 
     def verify_action_params(self) -> bool:
-        if self.action_args is None:
-            return False
-        if self.action in (Action.SWITCH, Action.OFF, Action.ON):
+        if self.action_args == {}:
+            return self.action in []
+        if self.action in [Action.SWITCH, Action.OFF, Action.ON]:
             return all(k in self.action_args for k in ['user'])
+        elif self.action == Action.STATE:
+            return all(k in self.action_args for k in ['details'])
         elif self.action == Action.TIMER:
-            return all(k in self.action_args for k in ['user', 'delay', 'state'])
+            return all(k in self.action_args for k in ['user', 'delaySeconds', 'state'])
         return False
