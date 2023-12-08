@@ -65,7 +65,7 @@ class TestReasonFlow(unittest.TestCase):
         self.rf.add_reason("Reason 2")
         event = self.rf.to_event(EventCategory.INFO, immediate_store=False)
         now = datetime.now().strftime('%d.%m.%Y %H:%M:%S')
-        expected_event_str = f"{now} ℹ ReasonFlow: Test Flow"
+        expected_event_str = f"ℹ ReasonFlow: Test Flow"
         self.assertEqual(event.to_string(), expected_event_str)
         expected_event_str += "\n  ↓ Reason 1\n  ⤷ Reason 2"
         self.assertEqual(event.to_string(True), expected_event_str)

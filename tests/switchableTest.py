@@ -145,7 +145,7 @@ class TestSwitchable(unittest.TestCase):
         self.assertTrue(all(x.state for x in self.sw._dependencies))
         self.assertTrue(self.swT.state)
         self.assertFalse(self.swF.state)
-        time.sleep(0.5)
+        time.sleep(0.7)
         self.assertFalse(self.sw.state)
         self.assertFalse(all(x.state for x in self.sw._dependencies))
         self.assertFalse(self.swT.state)
@@ -274,7 +274,7 @@ class TestRemoteDevice(unittest.TestCase):
         self.assertEqual(osw.power_all, 123)
         self.assertEqual(osw._host, "no-host")
         self.assertEqual(osw._importance, 2)
-        self.assertEqual(osw._devcive_type, RemoteDeviceType.TASMOTA)
+        self.assertEqual(osw._device_type, RemoteDeviceType.TASMOTA)
 
         # Test dependency injection
         osw = RemoteDevice.from_object(obj, dependencies=[
