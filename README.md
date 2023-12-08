@@ -1,39 +1,37 @@
-# Title ![Latest Stable Version](https://img.shields.io/github/v/release/florianschleuss/fleybach-agent) ![Repository Size](https://img.shields.io/github/repo-size/florianschleuss/fleybach-agent) ![License](https://img.shields.io/github/license/florianschleuss/fleybach-agent)
+# FLEYBACH Agent ![Latest Stable Version](https://img.shields.io/github/v/release/florianschleuss/fleybach-agent) ![Repository Size](https://img.shields.io/github/repo-size/florianschleuss/fleybach-agent) ![License](https://img.shields.io/github/license/florianschleuss/fleybach-agent)
 
 #### Table of Contents
-1. [Basic Instruction](#basic-instruction)
-2. [Main Part](#main-part)
-3. [License](#license)
 
-## Basic Instruction
+1. [SocketIO Communication Scheme](#socketio-communication-scheme)
+2. [License](#license)
+
+## SocketIO Communication Scheme
+
 Basic Instruction with [Wikipedia](https://de.wikipedia.org/).
 
-## Main Part
-Part with main content and explonations
+WS 'task' event data scheme
 
-A Java code snippet
-
-```Java
-public class TicTacToe {
-
-  private int ROWS = 3;
-  private int COLS = 3;
-  public Player[][] board;
-  public enum Player {
-    Unknown, X, O
-  }
+```json
+{
+  "deviceId": "heat_pump",
+  "action": "on",
+  "args": {
+    "user": "flo", 
+    "state": false, 
+    "delay": 10
+    }
 }
 ```
 
-And a Python snippet
+Function Catalog
 
-```Python
-class Python:
-
-  def function(int var_name):
-    var_name += 1
-    return var_name
+```python
+Action.SWITCH
+Action.ON
+Action.OFF
+Action.TIMER
 ```
 
 ## License
+
 The Repository is licensed under the terms of the [GPL Open Source](LICENSE) license and is available for free.

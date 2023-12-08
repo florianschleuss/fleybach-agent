@@ -11,8 +11,8 @@ parent_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.append(parent_dir)
 
 # fmt: off
-from utils.event import EventCategory  # noqa
-from utils.reason import ReasonFlow  # noqa
+from utils.event import EventCategory  
+from utils.reason import ReasonFlow  
 # fmt: on
 
 

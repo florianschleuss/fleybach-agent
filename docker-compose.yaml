@@ -13,6 +13,9 @@ services:
       - CUSTOMER_DOMAIN
       - CUSTOMER_SECRET
       - AUTH_URL
+      - GMX_USERNAME
+      - GMX_PASSWORD
+      - ALERT_RECIPIENTS
   # SMA Tripower and serial powermeter read out
   power:
     container_name: power
@@ -41,5 +44,6 @@ services:
       - CUSTOMER_DOMAIN
       - CUSTOMER_SECRET
       - AUTH_URL
-      - SMA_MODBUS_IP
-      - SMA_MODBUS_PORT
+      - GMX_USERNAME
+      - GMX_PASSWORD
+      - ALERT_RECIPIENTS

@@ -3,8 +3,7 @@ from typing import Dict
 import unittest
 import sys
 import os
-from unittest import mock
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import RPi.GPIO as GPIO
 # Get the parent directory
@@ -14,8 +13,8 @@ parent_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.append(parent_dir)
 
 # fmt: off
-from utils.switchable import Switchable  # noqa
-from utils.switchable.powerSwitchable import PowerSwitchable, LocalDevice, RemoteDevice, RemoteDeviceType  # noqa
+from utils.switchable import Switchable 
+from utils.switchable.powerSwitchable import PowerSwitchable, LocalDevice, RemoteDevice, RemoteDeviceType  
 # fmt: on
 
 
@@ -26,8 +25,8 @@ def dummy_true(*args, **kwargs) -> bool:
 DEBUG: bool = True
 
 
+@patch.dict(os.environ, {"TESTING_ENV": str(DEBUG)})
 class TestSwitchable(unittest.TestCase):
-    # TODO: restart timer, what happens if timers are canceled by new action
     def get_time(self):
         return self.emulated_time
 
@@ -51,7 +50,13 @@ class TestSwitchable(unittest.TestCase):
 
     def test_default_values(self):
         self.assertFalse(self.sw.state)
-        self.assertEqual(self.sw.active_time, 0)
+        self.assertEqual(self.sw.active_time_seconds, 0)
+
+    def test_rest_active_time(self):
+        self.sw._min_active_time_seconds = 10
+        self.assertEqual(self.sw.rest_active_time_seconds, 10)
+        self.sw.set_state(True, user='Test')
+        self.assertEqual(self.sw.rest_active_time_seconds, 10)
 
     def test_state_change(self):
         # Default user
@@ -86,10 +91,38 @@ class TestSwitchable(unittest.TestCase):
     def test_active_time(self,):
         self.sw.set_state(True, user='Test')
         self.emulated_time += 20
-        self.assertEqual(self.sw.active_time, 20)
+        self.assertEqual(self.sw.active_time_seconds, 20)
         self.emulated_time += 30
         self.sw.set_state(False, user='Test')
-        self.assertEqual(self.sw.active_time, 50)
+        self.assertEqual(self.sw.active_time_seconds, 50)
+
+    def test_active_time_start_off(self):
+        self.emulated_time += 20
+        self.sw.set_state(False, user='Test')
+        self.assertEqual(self.sw.active_time_seconds, 0)
+        self.emulated_time += 20
+        self.assertEqual(self.sw.active_time_seconds, 0)
+        self.sw.set_state(True, user='Test')
+        self.emulated_time += 20
+        self.assertEqual(self.sw.active_time_seconds, 20)
+        self.emulated_time += 30
+        self.sw.set_state(False, user='Test')
+        self.assertEqual(self.sw.active_time_seconds, 50)
+
+    def test_skip_switch_to_same_state(self):
+        self.assertEqual(self.sw._last_switch, 0)
+        self.emulated_time += 20
+        self.sw.set_state(False, user='Test')
+        self.assertEqual(self.sw._last_switch, 0)
+        self.assertFalse(self.sw.state)
+
+        self.sw.set_state(True, user='Test')
+        last_sw = self.sw._last_switch
+        self.emulated_time += 20
+        self.assertEqual(self.sw.active_time_seconds, 20)
+        self.sw.set_state(True, user='Test')
+        self.assertEqual(self.sw._last_switch, last_sw)
+        self.assertTrue(self.sw.state)
 
     def test_dependencies(self):
         self.assertFalse(all(x.state for x in self.sw._dependencies))
@@ -98,16 +131,15 @@ class TestSwitchable(unittest.TestCase):
         self.sw.set_state(False, user='Test')
         self.assertFalse(all(x.state for x in self.sw._dependencies))
 
-    # @mock.patch.dict(os.environ, {"TESTING_ENV": str(DEBUG)})
     def test_timer(self):
         # Test automatic and manual timer
-        self.sw._shutdown_time = 1
+        self.sw._shutdown_time_seconds = 1
         self.swT = Switchable(name='Test widget true')
         self.swF = Switchable(name='Test widget false')
         self.swF.set_state(True, user='TestFalse')
         self.sw.set_state(True, user='Test')
-        self.swT.set_state(True, user='TestTrue', timer=1)
-        self.swF.set_state(False, user='TestFalse', timer=1)
+        self.swT.set_state(True, user='TestTrue', timer_seconds=1)
+        self.swF.set_state(False, user='TestFalse', timer_seconds=1)
         time.sleep(0.5)
         self.assertTrue(self.sw.state)
         self.assertTrue(all(x.state for x in self.sw._dependencies))
@@ -126,7 +158,7 @@ class TestPowerSwitchable(unittest.TestCase):
         self.sw = PowerSwitchable(name='Test widget',
                                   power=100,
                                   dependencies=[
-                                      PowerSwitchable('Dependency', 50)])
+                                      PowerSwitchable(name='Dependency', power=50)])
         return
 
     def tearDown(self):
@@ -137,12 +169,13 @@ class TestPowerSwitchable(unittest.TestCase):
 
     def test_default_values(self):
         self.assertFalse(self.sw.state)
-        self.assertEqual(self.sw.active_time, 0)
+        self.assertEqual(self.sw.active_time_seconds, 0)
         self.assertEqual(self.sw.power, 100)
 
     def test_power_calc(self):
         self.assertEqual(self.sw.power_all, 150)
-        self.sw._dependencies.append(PowerSwitchable('Dependency2', 20))
+        self.sw._dependencies.append(
+            PowerSwitchable(name='Dependency2', power=20))
         self.assertEqual(self.sw.power_all, 170)
 
     def test_state(self):
@@ -158,7 +191,7 @@ class TestLocalDevice(unittest.TestCase):
                               power=100,
                               gpio=23,
                               dependencies=[
-                                  PowerSwitchable('Dependency', 50)])
+                                  PowerSwitchable(name='Dependency', power=50)])
         return
 
     def tearDown(self):
@@ -175,6 +208,7 @@ class TestLocalDevice(unittest.TestCase):
         obj: Dict = {
             'name': "TestDevice",
             'power': 123,
+            'importance': 2
         }
         osw: LocalDevice
         with self.assertRaises(Exception) as e:
@@ -183,6 +217,7 @@ class TestLocalDevice(unittest.TestCase):
         obj['gpio'] = 50
         osw = LocalDevice.from_object(obj)
         self.assertEqual(osw.name, "TestDevice")
+        self.assertEqual(osw._importance, 2)
         self.assertEqual(osw.power, 123)
         self.assertEqual(osw.power_all, 123)
         self.assertEqual(osw._gpio, 50)
@@ -196,14 +231,14 @@ class TestRemoteDevice(unittest.TestCase):
                                host="iot-1",
                                device_type=RemoteDeviceType.SONOFF,
                                dependencies=[
-                                   PowerSwitchable('Dependency', 50)])
+                                   PowerSwitchable(name='Dependency', power=50)])
         return
 
     def tearDown(self):
         return
 
     @patch('requests.get')
-    def test_state(self, mock_post):
+    def test_state(self, mock_get):
         self.assertFalse(self.sw.set_state(True, user='Test'))
         self.assertFalse(self.sw.state)
         self.sw.set_state(False, user='Test')
@@ -211,21 +246,22 @@ class TestRemoteDevice(unittest.TestCase):
         # Mock the 'get' method of the requests library
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_post.return_value = mock_response
+        mock_get.return_value = mock_response
 
         self.sw.set_state(True, user='Test')
         self.assertTrue(self.sw.state)
-        mock_post.assert_called_with("http://iot-1/control?cmd=GPIO,12,1")
+        mock_get.assert_called_with("http://iot-1/control?cmd=GPIO,12,1")
 
         self.sw.set_state(False, user='Test')
         self.assertFalse(self.sw.state)
-        mock_post.assert_called_with("http://iot-1/control?cmd=GPIO,12,0")
+        mock_get.assert_called_with("http://iot-1/control?cmd=GPIO,12,0")
 
     def test_from_dict(self):
         obj: Dict = {
             'name': "TestDevice",
             'power': 123,
-            'host': "no-host"
+            'host': "no-host",
+            'importance': 2
         }
         osw: RemoteDevice
         with self.assertRaises(Exception) as e:
@@ -237,6 +273,7 @@ class TestRemoteDevice(unittest.TestCase):
         self.assertEqual(osw.power, 123)
         self.assertEqual(osw.power_all, 123)
         self.assertEqual(osw._host, "no-host")
+        self.assertEqual(osw._importance, 2)
         self.assertEqual(osw._devcive_type, RemoteDeviceType.TASMOTA)
 
         # Test dependency injection

@@ -1,7 +1,11 @@
 from enum import Enum
 from datetime import datetime
 import os
-from typing import Optional
+from typing import List, Optional
+
+from utils.logging import get_module_logger
+
+logger = get_module_logger(linebreak=True)
 
 
 class EventCategory(Enum):
@@ -9,6 +13,7 @@ class EventCategory(Enum):
     IMPORTANT = "IMPORTANT"
     NEUTRAL = "NEUTRAL"
     INFO = "INFO"
+    DEBUG = "DEBUG"
 
 
 class EventType(Enum):
@@ -35,6 +40,17 @@ class Event:
         self.event_category: EventCategory = event_category
         self.event_type: EventType = event_type
         self._stored: bool = False
+        self._tags: List[str] = []
+
+    @property
+    def tags(self):
+        tags = [str(self.event_category)]
+        if self.event_type != EventType.DEFAULT:
+            tags.append(str(self.event_type))
+        return self._tags + tags
+
+    def add_tag(self, tag: str):
+        self._tags.append(tag)
 
     def __str__(self) -> str:
         return self.to_string()
@@ -56,7 +72,7 @@ class Event:
         formatted_time = self.timestamp.strftime("%d.%m.%Y %H:%M:%S")
         # Default to ﹖ for unknown types
         event_category_icon = ICONS.get(self.event_category.value, "﹖")
-        formatted_str: str = f"{formatted_time} {event_category_icon}"
+        formatted_str: str = f"{event_category_icon}"
         if self.event_type is EventType.REASONFLOW:
             formatted_str += f" ReasonFlow:"
         elif self.event_type is EventType.ERROR:
@@ -76,8 +92,9 @@ class Event:
             return
         if os.environ.get('TESTING_ENV') == 'True':
             # Triggered by unittest -> print to console with detail
-            print(self.to_string(details=True))
-            return
+            logger.debug(self.to_string(details=True))
+        else:
+            logger.info(self.to_string(details=True))
         # TODO store to db or print for debug
         self._stored = True
         return

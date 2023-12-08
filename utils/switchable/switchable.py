@@ -1,6 +1,7 @@
+from datetime import datetime, timedelta
 from enum import Enum
 import time
-from typing import List, Optional, TypeVar
+from typing import Dict, List, Optional, TypeVar
 
 from utils.delayTimer import DelayTimer
 from utils.event import Event, EventCategory
@@ -18,32 +19,136 @@ class DependencyType(Enum):
 class Depender:
     def __init__(self,
                  name: str,
-                 dependency_type: DependencyType,
                  user: Optional[str] = None):
         self.name: str = name
-        self.dependency_type: DependencyType = dependency_type
+        if self.name == "Automation":
+            self.dependency_type: DependencyType = DependencyType.AUTOMATIC
+        else:
+            self.dependency_type: DependencyType = DependencyType.USER
         self.user: Optional[str] = user
         return
 
     def __eq__(self, other: Depender):
         conditions = [
             self.name == other.name,
-            self.dependency_type == other.dependency_type,
-            self.user == other.user
+            self.dependency_type == other.dependency_type
         ]
-        return any(conditions)
+        return all(conditions)
+
+
+class TemperatureSafetyStepType(Enum):
+    LOW = 'low'
+    HIGH = 'high'
+
+
+class TemperatureSafetyStep():
+    def __init__(self,
+                 type: TemperatureSafetyStepType,
+                 value: float,
+                 interval_seconds: int,
+                 sensor_name: str):
+        self.type: TemperatureSafetyStepType = type
+        self.value: float = value
+        self.interval_seconds: int = interval_seconds
+        self.duration_seconds: int = 60
+        self.sensor_name: str = sensor_name
+        self.last_trigger: float = 0
+        self._not_seen_since: Optional[float] = None
+        self._alert_enabled: bool = True
+
+    @classmethod
+    def from_object(
+            cls,
+            object: Dict
+    ):
+        if 'type' not in object:
+            raise Exception("No type given")
+        if 'value_degrees_c' not in object:
+            raise Exception("No value given")
+        if 'interval_seconds' not in object:
+            raise Exception("No interval given")
+        if 'sensor_name' not in object:
+            raise Exception("No sensor name given")
+        tss = TemperatureSafetyStep(
+            value=object['value_degrees_c'],
+            interval_seconds=object['interval_seconds'],
+            sensor_name=object['sensor_name'],
+            type=TemperatureSafetyStepType(object['type'])
+        )
+        if 'duration_seconds' in object:
+            tss.duration_seconds = object['duration_seconds']
+        if 'alert_enabled' in object:
+            tss._alert_enabled = object['alert_enabled']
+        return tss
+
+    def is_safe(self,
+                temperature: float
+                ) -> bool:
+        self._not_seen_since = None
+        if self.last_trigger + self.interval_seconds > time.time():
+            return True
+        if self.type == TemperatureSafetyStepType.LOW:
+            return self.value < temperature
+        elif self.type == TemperatureSafetyStepType.HIGH:
+            return self.value > temperature
+        return False
+
+    def needs_alert(self) -> bool:
+        if not self._alert_enabled:
+            return False
+        if self._not_seen_since is None:
+            self._not_seen_since = time.time()
+            return False
+        return self._not_seen_since + self.interval_seconds < time.time()
+
+    def alert_send(self):
+        self._not_seen_since = time.time()
+
+    def trigger(self):
+        """
+        Logs a trigger to be aware of the last activation.
+        Information used for is_safe evaluation.
+        """
+        self.last_trigger = time.time()
+
+
+class TemperatureSafety:
+    def __init__(self):
+        self.temperature_safety_steps: List[TemperatureSafetyStep] = []
+        return
+
+    @classmethod
+    def from_list(
+            cls,
+            list: List[Dict]
+    ):
+        if len(list) == 0:
+            return
+        ts: TemperatureSafety = TemperatureSafety()
+        for tss in list:
+            ts.temperature_safety_steps.append(
+                TemperatureSafetyStep.from_object(tss))
+        return ts
+
+    def by_step_type(self,
+                     type: TemperatureSafetyStepType) -> List[TemperatureSafetyStep]:
+        return [tss for tss in self.temperature_safety_steps if tss.type == type]
+
+    def needed_sensors(self) -> List[str]:
+        return list(dict.fromkeys([ts.sensor_name for ts in self.temperature_safety_steps]))
 
 
 class Switchable:
     def __init__(self,
                  name: str,
                  dependencies: List[Switchable] = [],
-                 shutdown_time: int = 0,
-                 max_active_time: int = 86400,  # One day
-                 min_active_time: int = 0,
-                 hysteresis: int = 0,
-                 re_hysteresis: int = 0,
-                 importance: int = 0
+                 shutdown_time_seconds: int = 0,
+                 max_active_time_seconds: int = 86400,  # One day
+                 min_active_time_seconds: int = 0,
+                 hysteresis_seconds: int = 0,
+                 re_hysteresis_seconds: int = 0,
+                 importance: int = 0,
+                 temperature_safety: Optional[TemperatureSafety] = None
                  ) -> None:
         # Displayed name of SW
         self.name: str = name
@@ -60,31 +165,34 @@ class Switchable:
         self._actuators: List[Depender] = []
 
         # Time the SW has been on in sec
-        self._active_time: int = 0
+        self._active_time_seconds: int = 0
 
         # Maximum time per day of active in sec
-        self._max_active_time: int = max_active_time
+        self._max_active_time_seconds: int = max_active_time_seconds
 
         # Minimum time per day of active in sec
-        self._min_active_time: int = min_active_time
+        self._min_active_time_seconds: int = min_active_time_seconds
 
         # Timestamp of last switch in sec
         self._last_switch: int = 0
 
         # Automatic shutdown after x seconds
-        self._shutdown_time: int = shutdown_time
+        self._shutdown_time_seconds: int = shutdown_time_seconds
         self._shutdown_timer: Optional[DelayTimer] = None
         # Internal variable to keep track of a possible restart_timer
         self._restart_timer: Optional[DelayTimer] = None
 
         # Min. active between on->off in sec
-        self._hysteresis: int = hysteresis
+        self._hysteresis: int = hysteresis_seconds
 
         # Min. deactive between off->on in sec
-        self._re_hysteresis: int = re_hysteresis
+        self._re_hysteresis: int = re_hysteresis_seconds
 
         # Value to describe if the SW is more or less important than others
         self._importance: int = importance
+
+        # Temperature information on which it is safe to operate
+        self._temperature_safety: Optional[TemperatureSafety] = temperature_safety
         return
 
     @property
@@ -94,79 +202,97 @@ class Switchable:
     def set_state(self,
                   new_state: bool,
                   user: str,
-                  timer: Optional[int] = None,
+                  timer_seconds: Optional[int] = None,
                   reason_flow: Optional[ReasonFlow] = None) -> bool:
         '''
         Handles state changing with actuator awareness.
 
         :param user: The user/actuator that initiated the operation
-        :param timer: Optional timer to revert the operation done after x sec
+        :param timer_seconds: Optional timer to revert the operation done after x sec
 
         :return: Value that is set after validation
         '''
         if new_state:  # Switch on
-            if self._last_switch > (time.time() - self._re_hysteresis):
+            if self._last_switch > (time.time() - self._re_hysteresis) and not self._state:
                 if reason_flow is not None:
-                    reason_flow.add_reason(f"Re-Hysteresis blocked attempt. re_hyst {int(self._re_hysteresis/60)} min vs. last_switch {int((time.time()-self._last_switch)/60)} min")  # noqa
-                    reason_flow.to_event(EventCategory.INFO)
+                    reason_flow.add_reason(
+                        f"Re-Hysteresis blocked attempt. re_hyst {int(self._re_hysteresis/60)} min vs. last_switch {int((time.time()-self._last_switch)/60)} min")
+                    reason_flow.to_event(EventCategory.DEBUG)
                 return False
-            if self._max_active_time <= self.active_time:
+            if self._max_active_time_seconds <= self.active_time_seconds and not self._state:
                 if reason_flow is not None:
-                    reason_flow.add_reason(f"Max active time blocked attempt. max_active {int(self._max_active_time/60)} min vs. active_time {int(self.active_time/60)} min")  # noqa
-                    reason_flow.to_event(EventCategory.INFO)
+                    reason_flow.add_reason(
+                        f"Max active time blocked attempt. max_active {int(self._max_active_time_seconds/60)} min vs. active_time {int(self.active_time_seconds/60)} min")
+                    reason_flow.to_event(EventCategory.DEBUG)
                 return False
             if len(self._dependencies) != 0:
                 if reason_flow is not None:
-                    reason_flow.add_reason(f"Going through {len(self._dependencies)} dependencies")  # noqa
+                    reason_flow.add_reason(
+                        f"Going through {len(self._dependencies)} dependencies")
                 for d in self._dependencies:
-                    if (dep := self.to_depender()) not in d._dependers:
+                    if (dep := self.to_depender(user)) not in d._dependers:
                         d._dependers.append(dep)
                         if reason_flow is not None:
-                            reason_flow.add_reason(f"Added self ({self.name}) to {d.name} as depender")  # noqa
+                            reason_flow.add_reason(
+                                f"Added self ({self.name}) to {d.name} as depender")
                             rf = reason_flow.split()
                         else:
                             rf = None
                         d.refresh_state(reason_flow=rf)
             self._actuators.append(
-                Depender(name=user, dependency_type=DependencyType.AUTOMATIC))
-            # TODO dependency type correct
+                Depender(name=user, user=user))
+            if reason_flow is not None:
+                reason_flow.add_reason(
+                    f"Added '{user}' to actuators. Total: {len(self._actuators)}")
             if self._restart_timer is not None:
                 self._restart_timer.stop()
                 self._restart_timer = None
-            if self._shutdown_time != 0 or timer is not None:
-                self._shutdown_timer = DelayTimer(timeout=self._shutdown_time if timer is None else timer,
+            if self._shutdown_time_seconds != 0 or timer_seconds is not None:
+                if reason_flow is not None:
+                    reason_flow.add_reason(
+                        f"Automatic shutdown at {(datetime.now() + timedelta(seconds=self._shutdown_time_seconds if timer_seconds is None else timer_seconds)).strftime('%d.%m.%Y %H:%M:%S')}")
+                self._shutdown_timer = DelayTimer(timeout=self._shutdown_time_seconds if timer_seconds is None else timer_seconds,
                                                   userHandler=self.set_state,
                                                   kwargs={'new_state': False,
                                                           'user': user,
                                                           'reason_flow': reason_flow})
 
         else:  # Switch off
-            if self._last_switch > (time.time() - self._hysteresis):
+            if self._last_switch > (time.time() - self._hysteresis) and self._state:
                 if reason_flow is not None:
-                    reason_flow.add_reason(f"Hysteresis blocked attempt. hyst {int(self._hysteresis/60)} min vs. last_switch {int((time.time()-self._last_switch)/60)} min")  # noqa
-                    reason_flow.to_event(EventCategory.INFO)
+                    reason_flow.add_reason(
+                        f"Hysteresis blocked attempt. hyst {int(self._hysteresis/60)} min vs. last_switch {int((time.time()-self._last_switch)/60)} min")
+                    reason_flow.to_event(EventCategory.DEBUG)
                 return False
-            if self._shutdown_timer is not None and timer is None:
+            if self._shutdown_timer is not None and timer_seconds is None:
                 self._shutdown_timer.stop()
                 self._shutdown_timer = None
-            if timer is not None:
-                self._restart_timer = DelayTimer(timeout=timer,
+            if timer_seconds is not None:
+                if reason_flow is not None:
+                    reason_flow.add_reason(
+                        f"Automatic restart at {(datetime.now() + timedelta(seconds=timer_seconds)).strftime('%d.%m.%Y %H:%M:%S')}")
+                self._restart_timer = DelayTimer(timeout=timer_seconds,
                                                  userHandler=self.set_state,
                                                  kwargs={'new_state': True,
                                                          'user': user,
                                                          'reason_flow': reason_flow})
-            if Depender(name=user, dependency_type=DependencyType.AUTOMATIC) in self._actuators:
+            if Depender(name=user, user=user) in self._actuators:
                 self._actuators.remove(
-                    Depender(name=user, dependency_type=DependencyType.AUTOMATIC))
-            # TODO dependency type correct
+                    Depender(name=user, user=user))
+                if reason_flow is not None:
+                    reason_flow.add_reason(
+                        f"Removed '{user}' from actuators. Total: {len(self._actuators)}")
             if len(self._dependencies) != 0 and len(self._actuators) == 0:
                 if reason_flow is not None:
-                    reason_flow.add_reason(f"No more actuators present for {self.name}")  # noqa
-                    reason_flow.add_reason(f"Going through {len(self._dependencies)} dependencies")  # noqa
+                    reason_flow.add_reason(
+                        f"No more actuators present for {self.name}")
+                    reason_flow.add_reason(
+                        f"Going through {len(self._dependencies)} dependencies")
                 for d in self._dependencies:
-                    if (dep := self.to_depender()) in d._dependers:
+                    if (dep := self.to_depender(user)) in d._dependers:
                         if reason_flow is not None:
-                            reason_flow.add_reason(f"Removed self ({self.name}) from {d.name} as depender")  # noqa
+                            reason_flow.add_reason(
+                                f"Removed self ({self.name}) from {d.name} as depender")
                             rf = reason_flow.split()
                         else:
                             rf = None
@@ -177,51 +303,50 @@ class Switchable:
         return self._state
 
     @property
-    def active_time(self) -> int:
+    def active_time_seconds(self) -> int:
         '''
         Calculates the time the device is active.
 
         :return: Time the device is active.
         '''
-        active_time: int = self._active_time
+        active_time_seconds: int = self._active_time_seconds
         if self._state:
-            active_time += int(time.time()) - self._last_switch
-        return active_time
+            active_time_seconds += int(time.time()) - self._last_switch
+        return active_time_seconds
 
     @property
-    def rest_active_time(self) -> int:
+    def rest_active_time_seconds(self) -> int:
         '''
         Returns rest time to fulfill min_active_time requriement.
         Returns 0 if no need for activation.
 
         :return: The rest time the device needs to be active
         '''
-        rest_time: int = self._max_active_time - self.active_time
-        if self._min_active_time < self.active_time and rest_time < 0:
+        rest_time: int = self._max_active_time_seconds - self.active_time_seconds
+        if self._min_active_time_seconds < self.active_time_seconds and rest_time < 0:
             return 0
-        return self._max_active_time - self.active_time
+        return self._min_active_time_seconds - self.active_time_seconds
 
     def reset(self):
         '''
         Reset the values for a daily reset routine.
         '''
-        self._active_time: int = 0
+        self._active_time_seconds: int = 0
         if self._last_switch != 0:
             self._last_switch = int(time.time())
-        # TODO: log
+        Event(
+            comment=f"Reset routine run for {self.name}",
+            event_category=EventCategory.INFO
+        ).store()
         return
 
-    def to_depender(self,
-                    dependency_type: DependencyType =
-                    DependencyType.AUTOMATIC) -> Depender:
+    def to_depender(self, user: Optional[str]) -> Depender:
         '''
         Conversion to depender class
 
-        :param dependency_type: DependencyType to know the type of relation
-
         :return: A Depender object
         '''
-        return Depender(name=self.name, dependency_type=dependency_type)
+        return Depender(name=self.name, user=user)
 
     def _set_hardware_io(self,
                          state: bool,
@@ -242,9 +367,13 @@ class Switchable:
         '''
         new_state = len(self._actuators) > 0 or len(self._dependers) > 0
 
+        if self._state == new_state:
+            return
+
         if self._set_hardware_io(new_state, reason_flow=reason_flow):
-            if not new_state:
-                self._active_time += int(time.time()) - self._last_switch
+            if not new_state and self._last_switch != 0:
+                self._active_time_seconds += int(time.time()) - \
+                    self._last_switch
             self._last_switch = int(time.time())
             if self._state != new_state:
                 if reason_flow is not None:

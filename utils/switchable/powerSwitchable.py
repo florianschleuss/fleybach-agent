@@ -5,9 +5,10 @@ import requests
 from requests.exceptions import ConnectionError
 from utils.event import EventCategory
 from utils.reason import ReasonFlow
-from utils.switchable.switchable import Switchable
+from utils.switchable.switchable import Switchable, TemperatureSafety
 
 import RPi.GPIO as GPIO
+GPIO.setwarnings(False)  # type: ignore
 
 PowerSwitchable = TypeVar('PowerSwitchable')
 LocalDevice = TypeVar('LocalDevice')
@@ -18,25 +19,12 @@ GPIO.setmode(GPIO.BCM)  # type: ignore
 
 class PowerSwitchable(Switchable):
     def __init__(self,
-                 name: str,
                  power: int,
                  power_off_tolerance: int = 0,
-                 dependencies: List[Switchable] = [],
-                 shutdown_time: int = 0,
-                 max_active_time: int = 86400,
-                 min_active_time: int = 0,
-                 hysteresis: int = 0,
-                 re_hysteresis: int = 0,
-                 importance: int = 0
+                 *args,
+                 **kwarags
                  ) -> None:
-        super().__init__(name=name,
-                         dependencies=dependencies,
-                         shutdown_time=shutdown_time,
-                         max_active_time=max_active_time,
-                         min_active_time=min_active_time,
-                         hysteresis=hysteresis,
-                         re_hysteresis=re_hysteresis,
-                         importance=importance)
+        super().__init__(*args, **kwarags)
 
         # Power consumption of this particular SW
         self.power: int = power
@@ -57,27 +45,10 @@ class PowerSwitchable(Switchable):
 
 class LocalDevice(PowerSwitchable):
     def __init__(self,
-                 name: str,
-                 power: int,
                  gpio: int,
-                 power_off_tolerance: int = 0,
-                 dependencies: List[Switchable] = [],
-                 shutdown_time: int = 0,
-                 max_active_time: int = 86400,
-                 min_active_time: int = 0,
-                 hysteresis: int = 0,
-                 re_hysteresis: int = 0,
-                 importance: int = 0) -> None:
-        super().__init__(name,
-                         power,
-                         power_off_tolerance,
-                         dependencies,
-                         shutdown_time,
-                         max_active_time,
-                         min_active_time,
-                         hysteresis,
-                         re_hysteresis,
-                         importance)
+                 *args,
+                 **kwarags) -> None:
+        super().__init__(*args, **kwarags)
 
         # GPIO pin to which the device is connected
         self._gpio: int = gpio
@@ -105,16 +76,22 @@ class LocalDevice(PowerSwitchable):
             device: LocalDevice = updating_device
         if 'power_off_tolerance' in object:
             device._power_off_tolerance = object['power_off_tolerance']
-        if 'shutdown_time' in object:
-            device._shutdown_time = object['shutdown_time']
-        if 'max_active_time' in object:
-            device._max_active_time = object['max_active_time']
-        if 'min_active_time' in object:
-            device._min_active_time = object['min_active_time']
-        if 'hysteresis' in object:
-            device._hysteresis = object['hysteresis']
-        if 're_hysteresis' in object:
-            device._re_hysteresis = object['re_hysteresis']
+        if 'shutdown_time_seconds' in object:
+            device._shutdown_time_seconds = object['shutdown_time_seconds']
+        if 'max_active_time_seconds' in object:
+            device._max_active_time_seconds = object['max_active_time_seconds']
+        if 'min_active_time_seconds' in object:
+            device._min_active_time_seconds = object['min_active_time_seconds']
+        if 'hysteresis_seconds' in object:
+            device._hysteresis = object['hysteresis_seconds']
+        if 're_hysteresis_seconds' in object:
+            device._re_hysteresis = object['re_hysteresis_seconds']
+        if 'importance' in object:
+            device._importance = object['importance']
+        if 'temperature_safety' in object:
+            device._temperature_safety = TemperatureSafety.from_list(
+                object['temperature_safety'])
+            pass
         if dependencies:
             device._dependencies = dependencies
         return device
@@ -147,28 +124,12 @@ class RemoteDeviceType(Enum):
 
 class RemoteDevice(PowerSwitchable):
     def __init__(self,
-                 name: str,
-                 power: int,
                  host: str,
                  device_type: RemoteDeviceType,
-                 power_off_tolerance: int = 0,
-                 dependencies: List[Switchable] = [],
-                 shutdown_time: int = 0,
-                 max_active_time: int = 86400,
-                 min_active_time: int = 0,
-                 hysteresis: int = 0,
-                 re_hysteresis: int = 0,
-                 importance: int = 0) -> None:
-        super().__init__(name,
-                         power,
-                         power_off_tolerance,
-                         dependencies,
-                         shutdown_time,
-                         max_active_time,
-                         min_active_time,
-                         hysteresis,
-                         re_hysteresis,
-                         importance)
+                 *args,
+                 **kwarags
+                 ) -> None:
+        super().__init__(*args, **kwarags)
 
         self._host: str = host
 
@@ -204,16 +165,22 @@ class RemoteDevice(PowerSwitchable):
             device_type=RemoteDeviceType.from_str(object['device_type']))
         if 'power_off_tolerance' in object:
             device._power_off_tolerance = object['power_off_tolerance']
-        if 'shutdown_time' in object:
-            device._shutdown_time = object['shutdown_time']
-        if 'max_active_time' in object:
-            device._max_active_time = object['max_active_time']
-        if 'min_active_time' in object:
-            device._min_active_time = object['min_active_time']
-        if 'hysteresis' in object:
-            device._hysteresis = object['hysteresis']
-        if 're_hysteresis' in object:
-            device._re_hysteresis = object['re_hysteresis']
+        if 'shutdown_time_seconds' in object:
+            device._shutdown_time_seconds = object['shutdown_time_seconds']
+        if 'max_active_time_seconds' in object:
+            device._max_active_time_seconds = object['max_active_time_seconds']
+        if 'min_active_time_seconds' in object:
+            device._min_active_time_seconds = object['min_active_time_seconds']
+        if 'hysteresis_seconds' in object:
+            device._hysteresis = object['hysteresis_seconds']
+        if 're_hysteresis_seconds' in object:
+            device._re_hysteresis = object['re_hysteresis_seconds']
+        if 'importance' in object:
+            device._importance = object['importance']
+        if 'temperature_safety' in object:
+            device._temperature_safety = TemperatureSafety.from_list(
+                object['temperature_safety'])
+            pass
         if dependencies:
             device._dependencies = dependencies
         return device
@@ -241,10 +208,12 @@ class RemoteDevice(PowerSwitchable):
                 return True
         except ConnectionError as e:
             if reason_flow is not None:
-                reason_flow.add_reason(f"Connection error for {self.name} to host {self._host} trying to switch to {state}\n{e}")  # noqa
+                reason_flow.add_reason(
+                    f"Connection error for {self.name} to host {self._host} trying to switch to {state}\n{e}")
                 reason_flow.to_event(EventCategory.IMPORTANT)
             return False
         if reason_flow is not None:
-            reason_flow.add_reason(f"Unsuccessful switching for {self.name} to host {self._host} trying to switch to {state}")  # noqa
+            reason_flow.add_reason(
+                f"Unsuccessful switching for {self.name} to host {self._host} trying to switch to {state}")
             reason_flow.to_event(EventCategory.IMPORTANT)
         return False

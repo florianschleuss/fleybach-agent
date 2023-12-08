@@ -37,7 +37,7 @@ class Token:
         }.items())
 
 
-def get_jwt(auth_url: str, domain: str, secret: str) -> Union[Token, None]:
+def get_jwt(auth_url: str, domain: str, secret: str) -> Token:
     try:
         jwt = r.post(f'http://{auth_url}/customer/login', json={
             "domain": domain,
@@ -45,7 +45,7 @@ def get_jwt(auth_url: str, domain: str, secret: str) -> Union[Token, None]:
         })
         return Token(jwt.json().get('data'))
     except r.exceptions.ConnectionError:
-        return None
+        return Token(None, exp=0)
 
 
 class JWTValidator:
@@ -53,7 +53,7 @@ class JWTValidator:
         self.auth_url = auth_url
         self.domain = domain
         self.secret = secret
-        self.token = Token(None, exp=0)
+        self.token: Token = Token(None, exp=0)
 
     def v(self):
         if self.token.exp < datetime.now().timestamp():
