@@ -1,41 +1,40 @@
 {
-    "routines": [
-        {
-            "name": "temperature history",
-            "type": "cycle",
-            "timespan": 60,
-            "sensorNames": [
-                "water",
-                "air",
-                "basement"
-            ]
-        }
-    ],
-    "sensors": [
-        {
-            "deviceId": "28-03179779c5de",
-            "name": "water",
-            "offset": 2,
-            "enabled": true
-        },
-        {
-            "deviceId": "28-0416a1bf2bff",
-            "name": "air",
-            "enabled": true
-        },
-        {
-            "deviceId": "28-0317046838ff",
-            "name": "basement"
-        },
-        {
-            "deviceId": "28-01131314efaa",
-            "name": "buffer_top",
-            "enabled": false
-        },
-        {
-            "deviceId": "28-011313227baa",
-            "name": "buffer_bottom",
-            "enabled": false
-        }
-    ]
+  "routines": [
+    {
+      "name": "temperature history",
+      "type": "cycle",
+      "intervalSeconds": 3600,
+      "sensorNames": ["water", "air", "basement"]
+    }
+  ],
+  "sensors": [],
+  "sensorsBackup": [
+    {
+      "deviceId": "28-03179779c5de",
+      "name": "water",
+      "offset": 2,
+      "enabled": true
+    },
+    {
+      "deviceId": "28-0416a1bf2bff",
+      "name": "air",
+      "enabled": true
+    },
+    {
+      "deviceId": "28-0317046838ff",
+      "name": "basement"
+    },
+    {
+      "deviceId": "28-01131314efaa",
+      "name": "buffer_top",
+      "upperBound": "100",
+      "enabled": false
+    },
+    {
+      "deviceId": "28-011313227baa",
+      "name": "buffer_bottom",
+      "upperBound": "100",
+      "enabled": false
+    }
+  ]
 }

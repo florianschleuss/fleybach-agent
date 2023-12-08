@@ -3,7 +3,7 @@
         {
             "name": "solar history",
             "type": "history",
-            "timespan": 1440,
+            "intervalSeconds": 86400,
             "sensorNames": [
                 "totalProduction"
             ]
@@ -11,7 +11,7 @@
         {
             "name": "power history",
             "type": "history",
-            "timespan": 60,
+            "intervalSeconds": 3600,
             "sensorNames": [
             ]
         }

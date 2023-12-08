@@ -1,4 +1,6 @@
 requests
 pyjwt
+Flask
+flask_restful
 
 pymodbus==2.3.0

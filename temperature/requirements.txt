@@ -1,2 +1,5 @@
 requests
 pyjwt
+Flask
+flask_restful
+python-dotenv
