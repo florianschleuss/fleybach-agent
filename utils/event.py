@@ -9,6 +9,9 @@ logger = get_module_logger(linebreak=True)
 
 
 class EventCategory(Enum):
+    """
+    Severity of the event
+    """
     CRITICAL = "CRITICAL"
     IMPORTANT = "IMPORTANT"
     NEUTRAL = "NEUTRAL"
@@ -17,6 +20,9 @@ class EventCategory(Enum):
 
 
 class EventType(Enum):
+    """
+    More specific information about what the event contains
+    """
     DEFAULT = "DEFAULT"
     REASONFLOW = "REASONFLOW"
     ERROR = "ERROR"
@@ -94,7 +100,16 @@ class Event:
             # Triggered by unittest -> print to console with detail
             logger.debug(self.to_string(details=True))
         else:
-            logger.info(self.to_string(details=True))
+            if self.event_category == EventCategory.DEBUG:
+                logger.debug(self.to_string(details=True))
+            elif self.event_category == EventCategory.INFO:
+                logger.info(self.to_string(details=True))
+            elif self.event_category == EventCategory.NEUTRAL:
+                logger.info(self.to_string(details=True))
+            elif self.event_category == EventCategory.IMPORTANT:
+                logger.warning(self.to_string(details=True))
+            elif self.event_category == EventCategory.CRITICAL:
+                logger.critical(self.to_string(details=True))
         # TODO store to db or print for debug
         self._stored = True
         return
