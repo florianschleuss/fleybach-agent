@@ -3,12 +3,14 @@ import logging
 
 class NewlineRemovingFormatter(logging.Formatter):
     def format(self, record):
+        record.msg = str(record.msg)
         record.msg = record.msg.replace('\n', ' ')
         return super(NewlineRemovingFormatter, self).format(record)
 
 
 class NewlineFormatter(logging.Formatter):
     def format(self, record):
+        record.msg = str(record.msg)
         record.msg = ('\n'+record.msg).replace('\n', '\n    ')
         return super(NewlineFormatter, self).format(record)
 
