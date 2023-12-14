@@ -449,8 +449,11 @@ def handle_task_event(data: dict):
 
 if __name__ == "__main__":
     startup_check()
-    sio.connect('https://api.florianschleuss.de', transports=['websocket'],
-                socketio_path="device/socket.io", wait=False)
+    try:
+        sio.connect('https://api.florianschleuss.de', transports=['websocket'],
+                    socketio_path="device/socket.io", wait=False)
+    except socketio.client.exceptions.ConnectionError as e:
+        logger.critical(f"SIO connect error: {str(e)}")
     while True:
         start: float = datetime.datetime.now().timestamp()
 
