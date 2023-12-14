@@ -10,6 +10,7 @@ from flask import Flask
 from flask_restful import Api
 
 import requests as r
+from sml import SMLSerialParser
 from pymodbus.client.sync import ModbusTcpClient  # type: ignore
 
 from utils.auth import JWTValidator
@@ -37,6 +38,8 @@ with open('config.json') as config_file:
 
 client = ModbusTcpClient(host=address, port=port, timeout=10)
 client.connect()
+
+sml_parser = SMLSerialParser()
 
 
 def update_sensor(id: str, name: str, value: Union[int, float], unit: str, type: str) -> bool:
@@ -146,8 +149,12 @@ def update_loop() -> None:
                               value=data['value'],
                               unit=data['unit'],
                               type=sensor.type if sensor.type is not None else data['type'])
-
-        # TODO: powermeter
+        if (data := sml_parser.get_energy_data()) is not None:
+            # {'bought': 27261.952, 'sold': 10845.6807, 'p_tot': 1324.29, 'p_l1': 282.8, 'p_l2': 906.93, 'p_l3': 134.54}
+            for k, v in data.to_dict().items():
+                sensors.append(
+                    {'id': 'pw-'+k, 'value': v, 'name': k})
+        # TODO Log failure
 
         batch_update_sensor(sensors_list=sensors)
         check_routines()
