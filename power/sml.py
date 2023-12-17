@@ -140,7 +140,8 @@ class SMLSerialParser:
         finally:
             if self.timer is not None:
                 self.timer = None
-            self.serial_port.close()
+            if self.serial_port.is_open:
+                self.serial_port.close()
 
     @staticmethod
     def signed_int(hex_str: bytes) -> int:
