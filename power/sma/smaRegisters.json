@@ -17,7 +17,7 @@
     },
     {
         "register": "30525",
-        "unit": "s",
+        "unit": "h",
         "name": "uptimeFeedIn",
         "calculationFactor": 3600,
         "calculationOperand": "/",

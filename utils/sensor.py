@@ -1,3 +1,4 @@
+from enum import Enum
 import time
 from typing import Dict, List, Optional
 
@@ -121,3 +122,77 @@ class SensorConfig:
 
     def get_sensor(self, device_id: str) -> Sensor:
         return next(s for s in self.sensors if s.device_id == device_id)
+
+
+class CalculationOperand(Enum):
+    DIV = '/'
+    MULT = '*'
+
+    @classmethod
+    def from_str(cls, str: str):
+        if str == '/':
+            return cls.DIV
+        elif str == '*':
+            return cls.MULT
+        raise Exception("No matching device type given")
+
+
+class ModbusRegister:
+    """
+    {
+        "register": "30513",
+        "unit": "kWh",
+        "name": "totalProduction",
+        "calculationFactor": 1000,
+        "calculationOperand": "/",
+        "type": "solar"
+    }
+    """
+
+    def __init__(self,
+                 register: int,
+                 name: str,
+                 unit: str,
+                 calculation_factor: int = 1,
+                 calculation_operand: CalculationOperand = CalculationOperand.DIV,
+                 type: str = 'solar',
+                 ) -> None:
+        self.register: int = register
+        self.name: str = name
+        self.unit: str = unit
+        self.calculation_factor: int = calculation_factor
+        self.calculation_operand: CalculationOperand = calculation_operand
+        self.type: str = type
+
+    @classmethod
+    def from_object(
+            cls,
+            object: Dict
+    ):
+        if 'name' not in object:
+            raise Exception("No name given")
+        if 'register' not in object:
+            raise Exception("No register given")
+        if 'unit' not in object:
+            raise Exception("No unit given")
+        register: ModbusRegister = cls(
+            name=object['name'],
+            register=object['register'],
+            unit=object['unit'],
+        )
+        if 'type' in object:
+            register.type = object['type']
+        if 'calculationFactor' in object:
+            register.calculation_factor = object['calculationFactor']
+        if 'calculationOperand' in object:
+            register.calculation_operand = CalculationOperand.from_str(
+                object['calculationOperand'])
+
+        return register
+
+    def transform_value(self, value):
+        if self.calculation_operand is CalculationOperand.DIV:
+            return value / self.calculation_factor
+        elif self.calculation_operand is CalculationOperand.MULT:
+            return value * self.calculation_factor
+        return value

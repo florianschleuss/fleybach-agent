@@ -10,13 +10,13 @@ from flask import Flask
 from flask_restful import Api
 
 import requests as r
-from sml import SMLSerialParser
-from pymodbus.client.sync import ModbusTcpClient  # type: ignore
+from pymodbus.client.sync import ModbusTcpClient
 
-from utils.auth import JWTValidator
+from sml import SMLSerialParser
 from sma.register import Register, registers as sma_registers
+from utils.auth import JWTValidator
 from utils.logging import format_seconds_to_mm_ss, get_module_logger
-from utils.sensor import SensorConfig
+from utils.sensor import ModbusRegister, SensorConfig
 
 logger = get_module_logger()
 
@@ -25,15 +25,16 @@ REFRESH_TIME_SECONDS = 10
 CUSTOMER_DOMAIN = os.environ.get('CUSTOMER_DOMAIN', "default")
 CUSTOMER_SECRET = os.environ.get('CUSTOMER_SECRET', "")
 AUTH_URL = os.environ.get('AUTH_URL', "")
-address = os.environ.get('SMA_MODBUS_IP')
-port = os.environ.get('SMA_MODBUS_PORT', 502)
+address = os.environ.get('SMA_MODBUS_IP', "")
+port = int(os.environ.get('SMA_MODBUS_PORT', 502))
 
 jwt: JWTValidator = JWTValidator(AUTH_URL, CUSTOMER_DOMAIN, CUSTOMER_SECRET)
 
-with open('sma/smaRegisters.json') as config_file:
-    register_config = json.load(config_file)
+with open('sma/smaRegisters.json', encoding="utf-8") as config_file:
+    register_config: List[ModbusRegister] = [
+        ModbusRegister.from_object(r) for r in json.load(config_file)]
 
-with open('config.json') as config_file:
+with open('config.json', encoding="utf-8") as config_file:
     config: SensorConfig = SensorConfig.from_object(json.load(config_file))
 
 client = ModbusTcpClient(host=address, port=port, timeout=10)
@@ -92,28 +93,29 @@ def make_history(names: List):
 
 def get_inverter_data(name: str):
     try:
-        config_register = next(s for s in register_config if s['name'] == name)
+        config_register: ModbusRegister = next(
+            r for r in register_config if r.name == name)
     except StopIteration:
-        return None
-    register: Register = sma_registers[config_register['register']]
+        # Not in register config
+        return
+    register: Register = sma_registers[str(config_register.register)]
     try:
         response = client.read_holding_registers(
             register.id,
             register.length,
-            unit=2
+            unit=3
         )
     except:
         logger.critical("Cannot connect to inverter")
         return
     register.set_registers(response.registers)
-    # print(register.get_value(), flush=True)
     if register.is_null() or register.get_value() == -2147483648:
-        return None
-    value = register.get_value()
-    if (_f := config_register.get('calculationFactor')) is not None and (_o := config_register.get('calculationOperand')) is not None:
-        if _o == '/':
-            value = value/_f
-    return {'value': value, 'unit': config_register['unit'], 'type': config_register['type']}
+        # logger.debug(f"FAI: {register.name} {register.get_value()}")
+        return {'value': 0, 'unit': config_register.unit, 'type': config_register.type}
+    value = config_register.transform_value(register.get_value())
+    # logger.debug(f"SUC: {register.name} {value} {config_register.unit}")
+
+    return {'value': value, 'unit': config_register.unit, 'type': config_register.type}
 
 
 def check_routines():
@@ -150,7 +152,6 @@ def update_loop() -> None:
                               unit=data['unit'],
                               type=sensor.type if sensor.type is not None else data['type'])
         if (data := sml_parser.get_energy_data()) is not None:
-            # {'bought': 27261.952, 'sold': 10845.6807, 'p_tot': 1324.29, 'p_l1': 282.8, 'p_l2': 906.93, 'p_l3': 134.54}
             for k, v in data.to_dict().items():
                 sensors.append(
                     {'id': 'pw-'+k, 'value': v, 'name': k})
