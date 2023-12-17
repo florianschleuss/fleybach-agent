@@ -173,8 +173,21 @@ def activate() -> Tuple[Dict, int]:
     for sensor in config.sensors:
         if get_inverter_data(sensor.device_id) is None:
             continue
-        # TODO if get_powermeter()
         sensors.append(sensor.name)
+    if sml_parser.get_energy_data() is not None:
+        sensors += ['bought', 'sold', 'total', 'l1', 'l2', 'l3',]
+    return {'sensors': sensors}, 200
+
+
+@app.route('/power', methods=['GET'])
+def power() -> Tuple[Dict, int]:
+    sensors = {}
+    for sensor in config.sensors:
+        if (data := get_inverter_data(sensor.device_id)) is None:
+            continue
+        sensors[sensor.name] = data['value']
+    if sml_parser.energy_data is not None:
+        sensors.update(sml_parser.energy_data.to_dict())
     return {'sensors': sensors}, 200
 
 

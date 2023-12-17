@@ -172,7 +172,7 @@ class DeviceController:
 
         reason_flow: ReasonFlow = ReasonFlow(
             name=f"Manual switch at {datetime.datetime.now()}",
-            initial_comment=f"{device.name} switched by {user}")
+            initial_comment=f"{device.name.capitalize()} switched by '{user}'")
         to_value: bool = new_state if new_state is not None else not device.state
         set_value: bool = device.set_state(new_state=to_value,
                                            user=user,
@@ -351,14 +351,22 @@ def startup_check() -> None:
 
 
 def get_power_consumption() -> float:
-    if local_temperature_component:
-        # TODO prioritize local component
-        return 0
+    """
+    Get the current power consumption.
+    If local component is present gets the data from there.
+    Fallback is to collect the data from the DB in the backend.
+    """
+    if local_power_component:
+        get = requests.get(url="http://power/power")
+        sensors: Dict[str, float] = get.json()['sensors']
+        return float(sensors['total'])
 
     jwt.v()
     get = requests.get(
         f"https://api.florianschleuss.de/sensor/sensors/names?customer_id={jwt.token.customer_id}&names[]=total",
         headers={'x-access-token': jwt.token._token})
+    if get.json() is None:
+        raise ConnectionError("No data was returned")
     data: Dict = get.json()['data'][0]
     if data['lastModified'] + 30 < time.time():
         # TODO Alert
@@ -375,6 +383,11 @@ def get_temperatures() -> Dict[str, float]:
     get = requests.get(
         f"https://api.florianschleuss.de/sensor/sensors/type/temperature?customer_id={jwt.token.customer_id}",
         headers={'x-access-token': jwt.token._token})
+    if get.status_code is not 200:
+        raise ConnectionError(
+            "API request decliend (status_code:{get.status_code})")
+    if get.json() is None:
+        raise ConnectionError("No data was returned")
     data: List[Dict] = get.json()['data']
     temps = {}
     for item in data:
@@ -459,12 +472,17 @@ if __name__ == "__main__":
 
         power: float
         temperatures: Dict[str, float]
+        try:
+            power = get_power_consumption()
+            dc.tick(power)
+        except ConnectionError as e:
+            logger.error(f"Error while get_power_consumption(): {str(e)}")
 
-        power = get_power_consumption()
-        dc.tick(power)
-
-        temperatures = get_temperatures()
-        dc.temperature_tick(temperatures)
+        try:
+            temperatures = get_temperatures()
+            dc.temperature_tick(temperatures)
+        except ConnectionError as e:
+            logger.error(f"Error while get_power_consumption(): {str(e)}")
 
         if (delta := (datetime.datetime.now().timestamp() - start)) < REFRESH_TIME_SECONDS:
             time.sleep(REFRESH_TIME_SECONDS - delta)
