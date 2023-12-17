@@ -44,7 +44,7 @@ def get_jwt(auth_url: str, domain: str, secret: str) -> Token:
             "secret": secret
         })
         return Token(jwt.json().get('data'))
-    except r.exceptions.ConnectionError:
+    except (r.exceptions.ConnectionError, r.exceptions.JSONDecodeError):
         return Token(None, exp=0)
 
 
