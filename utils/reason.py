@@ -1,9 +1,12 @@
+from ast import arg
 import copy
+import time
 from typing import List, Optional, TypeVar
+from utils.delayTimer import DelayTimer
 
 from utils.event import Event, EventCategory, EventType
 
-ReasonFlow = TypeVar('ReasonFlow')
+ReasonFlow = TypeVar('ReasonFlow')  # type: ignore
 
 
 class Reason:
@@ -23,12 +26,31 @@ class Reason:
 class ReasonFlow:
     def __init__(self,
                  name: str,
-                 initial_comment: Optional[str] = None):
+                 initial_comment: Optional[str] = None,
+                 auto_store_seconds: Optional[int] = 1,
+                 auto_store_event_category: EventCategory = EventCategory.NEUTRAL):
+        """
+        Initializes ReasonFlow
+
+        :param name:
+        :param initial_comment:
+        :param auto_store_seconds: If 'None' disables auto-store. Else seconds of no-reason-add until auto-store
+        :param auto_store_event_category: Category in which the event will be auto-stored
+        """
         # Name to describe the reason
         self.name = name
 
         # First element of the ReasonFlow as an entry point.
         self.head: Optional[Reason] = None
+
+        # Initialized DelayTimer for auto-save
+        self._auto_store_timer: Optional[DelayTimer] = None
+        if auto_store_seconds is not None:
+            self._auto_store_timer = DelayTimer(timeout=auto_store_seconds,
+                                                userHandler=self.to_event,
+                                                kwargs={
+                                                    'event_category': auto_store_event_category}
+                                                )
 
         # Initiate with immediate reason
         if initial_comment is not None:
@@ -82,9 +104,14 @@ class ReasonFlow:
             while current_reason.next:
                 current_reason = current_reason.next
             current_reason.next = new_reason
+        if self._auto_store_timer is not None:
+            self._auto_store_timer.reset()
         return self
 
     def update_name(self) -> ReasonFlow:
+        """
+        Sets the last comment as the new name of the RF
+        """
         if self.last_reason is not None:
             self.name = self.last_reason.comment
         return self
@@ -131,7 +158,24 @@ class ReasonFlow:
 
         :return: A deep copy of the ReasonFlow instance.
         """
+        # TODO true copy with delay timer
+        if restore_timer := self._auto_store_timer is not None:
+            self._auto_store_timer.stop()
+            timer_seconds = self._auto_store_timer.timeout
+            timer_handler = self._auto_store_timer.handler
+            timer_args = self._auto_store_timer._args
+            timer_kwargs = self._auto_store_timer._kwargs
+        self._auto_store_timer = None
         cp = copy.deepcopy(self)
+        if restore_timer:
+            self._auto_store_timer = DelayTimer(timeout=timer_seconds,  # type: ignore
+                                                userHandler=timer_handler,  # type: ignore
+                                                args=timer_args,  # type: ignore
+                                                kwargs=timer_kwargs)  # type: ignore
+            cp._auto_store_timer = DelayTimer(timeout=timer_seconds,  # type: ignore
+                                              userHandler=timer_handler,  # type: ignore
+                                              args=timer_args,  # type: ignore
+                                              kwargs=timer_kwargs)  # type: ignore
         if split_comment is not None:
             cp.add_reason(split_comment)
         return cp
@@ -161,4 +205,6 @@ class ReasonFlow:
                       event_type=EventType.REASONFLOW)
         if immediate_store:
             event.store()
+            if self._auto_store_timer is not None:
+                self._auto_store_timer.stop()
         return event

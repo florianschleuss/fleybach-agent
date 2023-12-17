@@ -1,6 +1,9 @@
 import logging
 
 
+LOGGING_LEVEL = logging.DEBUG
+
+
 class NewlineRemovingFormatter(logging.Formatter):
     def format(self, record):
         record.msg = str(record.msg)
