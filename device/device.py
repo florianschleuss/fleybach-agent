@@ -19,7 +19,7 @@ from utils.transportModels import ReturnObject
 logger = get_module_logger()
 sio: socketio.Client = socketio.Client()
 
-DEADLINE_CHECK_TIME = datetime.time(23, 55, 00)
+DEADLINE_CHECK_TIME = datetime.time(19, 00, 00)
 REFRESH_TIME_SECONDS = 10
 CUSTOMER_DOMAIN = os.environ.get('CUSTOMER_DOMAIN', "default")
 CUSTOMER_SECRET = os.environ.get('CUSTOMER_SECRET', "")
