@@ -7,13 +7,14 @@ from switchableTest import TestLocalDevice, TestPowerSwitchable, TestRemoteDevic
 if __name__ == "__main__":
 
     loader = TestLoader()
-    tests = [TestSwitchable,
-             TestPowerSwitchable,
-             TestLocalDevice,
-             TestRemoteDevice,
-             TestDevice,
-             TestReasonFlow
-             ]
+    tests = [
+        TestSwitchable,
+        TestPowerSwitchable,
+        TestLocalDevice,
+        TestRemoteDevice,
+        TestDevice,
+        TestReasonFlow
+    ]
     suite = TestSuite(loader.loadTestsFromTestCase(test)
                       for test in (tests))
 

@@ -82,11 +82,17 @@ class TestSwitchable(unittest.TestCase):
         self.assertTrue(self.sw.state)
         self.assertTrue(all(x.state for x in self.sw._dependencies))
         self.sw.set_state(False, user='1')
-        self.assertTrue(self.sw.state)
-        self.assertTrue(all(x.state for x in self.sw._dependencies))
-        self.sw.set_state(False, user='2')
         self.assertFalse(self.sw.state)
         self.assertFalse(all(x.state for x in self.sw._dependencies))
+
+    def test_mutliple_ons(self):
+        self.sw.set_state(True, user='1')
+        self.assertTrue(self.sw.state)
+        self.assertTrue(all(x.state for x in self.sw._dependencies))
+        self.sw.set_state(True, user='1')
+        self.assertTrue(self.sw.state)
+        self.assertTrue(all(x.state for x in self.sw._dependencies))
+        self.assertEqual(len(self.sw._actuators), 1)
 
     def test_active_time(self,):
         self.sw.set_state(True, user='Test')
