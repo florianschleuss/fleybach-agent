@@ -231,11 +231,11 @@ class RemoteDevice(PowerSwitchable):
         except ConnectionError as e:
             if reason_flow is not None:
                 reason_flow.add_reason(
-                    f"Connection error for {self.name} to host {self._host} trying to switch to {state}\n{e}")
+                    f"Connection error for {self.name} to host {self._host} trying to switch to '{state}'\n{e}")
                 reason_flow.to_event(EventCategory.IMPORTANT)
             return False
         if reason_flow is not None:
             reason_flow.add_reason(
-                f"Unsuccessful switching for {self.name} to host {self._host} trying to switch to {state}")
+                f"Unsuccessful switching for {self.name} to host {self._host} trying to switch to '{state}'")
             reason_flow.to_event(EventCategory.IMPORTANT)
         return False
