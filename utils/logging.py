@@ -2,6 +2,11 @@ import logging
 
 
 LOGGING_LEVEL = logging.DEBUG
+FLASK_LOGGING_LEVEL = logging.WARNING
+
+
+werkzeug_logger = logging.getLogger('werkzeug')
+werkzeug_logger.setLevel(FLASK_LOGGING_LEVEL)
 
 
 class NewlineRemovingFormatter(logging.Formatter):

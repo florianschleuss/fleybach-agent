@@ -1,6 +1,4 @@
-from ast import arg
 import copy
-import time
 from typing import List, Optional, TypeVar
 from utils.delayTimer import DelayTimer
 
@@ -42,6 +40,8 @@ class ReasonFlow:
 
         # First element of the ReasonFlow as an entry point.
         self.head: Optional[Reason] = None
+
+        self._event: Optional[Event] = None
 
         # Initialized DelayTimer for auto-save
         self._auto_store_timer: Optional[DelayTimer] = None
@@ -158,7 +158,6 @@ class ReasonFlow:
 
         :return: A deep copy of the ReasonFlow instance.
         """
-        # TODO true copy with delay timer
         if restore_timer := self._auto_store_timer is not None:
             self._auto_store_timer.stop()
             timer_seconds = self._auto_store_timer.timeout
@@ -169,11 +168,11 @@ class ReasonFlow:
         cp = copy.deepcopy(self)
         if restore_timer:
             self._auto_store_timer = DelayTimer(timeout=timer_seconds,  # type: ignore
-                                                userHandler=timer_handler,  # type: ignore
+                                                userHandler=self.to_event,  # type: ignore
                                                 args=timer_args,  # type: ignore
                                                 kwargs=timer_kwargs)  # type: ignore
             cp._auto_store_timer = DelayTimer(timeout=timer_seconds,  # type: ignore
-                                              userHandler=timer_handler,  # type: ignore
+                                              userHandler=cp.to_event,  # type: ignore
                                               args=timer_args,  # type: ignore
                                               kwargs=timer_kwargs)  # type: ignore
         if split_comment is not None:
@@ -199,12 +198,17 @@ class ReasonFlow:
             else:
                 details.append('  ⤷ ' + current_reason.comment)
             current_reason = current_reason.next
-        event = Event(comment=comment,
-                      details='\n'.join(details),
-                      event_category=event_category,
-                      event_type=EventType.REASONFLOW)
+        if self._event is None:
+            self._event = Event(comment=comment,
+                                details='\n'.join(details),
+                                event_category=event_category,
+                                event_type=EventType.REASONFLOW)
+        else:
+            self._event.comment = comment
+            self._event.details = '\n'.join(details)
+            self._event.event_category = event_category
         if immediate_store:
-            event.store()
+            self._event.store()
             if self._auto_store_timer is not None:
                 self._auto_store_timer.stop()
-        return event
+        return self._event
