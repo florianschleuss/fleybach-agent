@@ -7,8 +7,8 @@ from utils.delayTimer import DelayTimer
 from utils.event import Event, EventCategory
 from utils.reason import ReasonFlow
 
-Switchable = TypeVar('Switchable')
-Depender = TypeVar('Depender')
+Switchable = TypeVar('Switchable')  # type: ignore
+Depender = TypeVar('Depender')  # type: ignore
 
 
 class DependencyType(Enum):
@@ -221,46 +221,51 @@ class Switchable:
     def state(self):
         return self._state
 
+    def re_hysteresis_timeout(self) -> bool:
+        """
+        If re_hysteresis from self or any dependcies is blocking switch on
+        """
+        if self._last_switch > (time.time() - self._re_hysteresis_seconds):
+            return True
+        return any([d.re_hysteresis_timeout() for d in self._dependencies])
+
+    def hysteresis_timeout(self) -> bool:
+        """
+        If hysteresis from self or any dependcies is blocking switch off
+        """
+        if self._last_switch > (time.time() - self._hysteresis_seconds):
+            return True
+        return any([d.hysteresis_timeout() for d in self._dependencies])
+
+    def max_active_time_pause(self) -> bool:
+        """
+        If max_active_time from self or any dependcies is blocking switch on
+        """
+        if self._max_active_time_seconds <= self.active_time_seconds:
+            return True
+        return any([d.max_active_time_pause() for d in self._dependencies])
+
+    def remove_user_actuators(self):
+        self._actuators = [
+            a for a in self._actuators if a.dependency_type != DependencyType.USER]
+        return
+
     def _switch_on(self,
                    user: str,
                    timer_seconds: Optional[int] = None,
                    reason_flow: Optional[ReasonFlow] = None) -> bool:
-        if self._last_switch > (time.time() - self._re_hysteresis_seconds) and not self._state:
-            if reason_flow is not None:
-                reason_flow.add_reason(
-                    f"Re-Hysteresis blocked attempt. re_hyst {int(self._re_hysteresis_seconds/60)} min vs. last_switch {int((time.time()-self._last_switch)/60)} min")
-                reason_flow.to_event(EventCategory.DEBUG)
-            return False
-        if self._max_active_time_seconds <= self.active_time_seconds and not self._state:
-            if reason_flow is not None:
-                reason_flow.add_reason(
-                    f"Max active time blocked attempt. max_active {int(self._max_active_time_seconds/60)} min vs. active_time {int(self.active_time_seconds/60)} min")
-                reason_flow.to_event(EventCategory.DEBUG)
-            return False
-        if len(self._dependencies) != 0:
-            if reason_flow is not None:
-                reason_flow.add_reason(
-                    f"Going through {len(self._dependencies)} dependencies")
-            for d in self._dependencies:
-                if (dep := self.to_depender(user)) not in d._dependers:
-                    d._dependers.append(dep)
-                    if reason_flow is not None:
-                        reason_flow.add_reason(
-                            f"Added self ({self.name}) to {d.name} as depender")
-                        rf = reason_flow.split()
-                    else:
-                        rf = None
-                    d.refresh_state(reason_flow=rf)
-        self._actuators.append(
-            Depender(name=user, user=user))
+        """
+        :param user: User who initiated the action
+        :param timer: Optional timer to shutdown the device after x seconds
+
+        :return: Success of operation
+        """
+        if (dep := Depender(name=user, user=user)) not in self._actuators:
+            self._actuators.append(dep)
         if reason_flow is not None:
             reason_flow.add_reason(
                 f"Added '{user}' to actuators. Total: {len(self._actuators)}")
         self.refresh_state(reason_flow=reason_flow)
-
-        # Only if successful switch
-        if self._state is not True:
-            return self._state
 
         if self._restart_timer is not None:
             self._restart_timer.stop()
@@ -274,40 +279,31 @@ class Switchable:
                                               kwargs={'new_state': False,
                                                       'user': user,
                                                       'reason_flow': reason_flow})
-        return self._state
+        return True
 
     def _switch_off(self,
                     user: str,
                     timer_seconds: Optional[int] = None,
                     reason_flow: Optional[ReasonFlow] = None) -> bool:
-        if self._last_switch > (time.time() - self._hysteresis_seconds) and self._state:
+        """
+        Handles the addition or removal of user/automations into the device.
+        Calls _evaluate_state_change to calculate the new state.
+
+        :param user: User who initiated the action
+        :param timer: Optional timer to shutdown the device after x seconds
+
+        :return: Success of operation
+        """
+        if Depender(name=user, user=user).dependency_type is DependencyType.USER:
+            self.remove_user_actuators()
             if reason_flow is not None:
                 reason_flow.add_reason(
-                    f"Hysteresis blocked attempt. hyst {int(self._hysteresis_seconds/60)} min vs. last_switch {int((time.time()-self._last_switch)/60)} min")
-                reason_flow.to_event(EventCategory.DEBUG)
-            return False
-        if Depender(name=user, user=user) in self._actuators:
-            self._actuators.remove(
-                Depender(name=user, user=user))
+                    f"Removed all users from actuators. Total: {len(self._actuators)}")
+        elif (dep := Depender(name=user, user=user)) in self._actuators:
+            self._actuators.remove(dep)
             if reason_flow is not None:
                 reason_flow.add_reason(
                     f"Removed '{user}' from actuators. Total: {len(self._actuators)}")
-        if len(self._dependencies) != 0 and len(self._actuators) == 0:
-            if reason_flow is not None:
-                reason_flow.add_reason(
-                    f"No more actuators present for {self.name}")
-                reason_flow.add_reason(
-                    f"Going through {len(self._dependencies)} dependencies")
-            for d in self._dependencies:
-                if (dep := self.to_depender(user)) in d._dependers:
-                    if reason_flow is not None:
-                        reason_flow.add_reason(
-                            f"Removed self ({self.name}) from {d.name} as depender")
-                        rf = reason_flow.split()
-                    else:
-                        rf = None
-                    d._dependers.remove(dep)
-                    d.refresh_state(reason_flow=rf)
 
         self.refresh_state(reason_flow=reason_flow)
 
@@ -327,6 +323,8 @@ class Switchable:
                                              kwargs={'new_state': True,
                                                      'user': user,
                                                      'reason_flow': reason_flow})
+        # if reason_flow is not None:
+        #     reason_flow.to_event(event_category=EventCategory.NEUTRAL)
         return self._state
 
     def set_state(self,
@@ -349,9 +347,7 @@ class Switchable:
         else:
             success = self._switch_off(user=user, timer_seconds=timer_seconds,
                                        reason_flow=reason_flow)
-        if reason_flow is not None:
-            reason_flow.to_event(event_category=EventCategory.NEUTRAL)
-        return success
+        return self._state
 
     @property
     def active_time_seconds(self) -> int:
@@ -414,7 +410,7 @@ class Switchable:
         ).store()
         return
 
-    def to_depender(self, user: Optional[str]) -> Depender:
+    def to_depender(self, user: Optional[str] = None) -> Depender:
         '''
         Conversion to depender class
 
@@ -438,24 +434,85 @@ class Switchable:
                       reason_flow: Optional[ReasonFlow] = None) -> None:
         '''
         Re-evaltuates state when e.g. dependencies change and invoke refresh
+        It does not need to include who or what switched. It evaluates the state in a 'stateless' fashion.
         '''
         new_state = len(self._actuators) > 0 or len(self._dependers) > 0
 
         if self._state == new_state:
             return
 
+        # Switch on
+        if new_state:
+            if self.re_hysteresis_timeout():
+                if reason_flow is not None:
+                    reason_flow.add_reason(
+                        f"Re-Hysteresis blocked attempt.")
+                    reason_flow.to_event(EventCategory.DEBUG)
+                return
+
+            if self.max_active_time_pause():
+                if reason_flow is not None:
+                    reason_flow.add_reason(
+                        f"Max active time blocked attempt.")
+                    reason_flow.to_event(EventCategory.DEBUG)
+                return
+
+            if len(self._dependencies) != 0:
+                if reason_flow is not None:
+                    reason_flow.add_reason(
+                        f"Going through {len(self._dependencies)} dependencies")
+                for d in self._dependencies:
+                    if (dep := self.to_depender()) not in d._dependers:
+                        d._dependers.append(dep)
+                        if reason_flow is not None:
+                            reason_flow.add_reason(
+                                f"Added self ({self.name}) to '{d.name}' as depender")
+                            rf = reason_flow.split()
+                        else:
+                            rf = None
+                        d.refresh_state(reason_flow=rf)
+        # Switch off
+        else:
+            if self.hysteresis_timeout():
+                if reason_flow is not None:
+                    reason_flow.add_reason(
+                        f"Hysteresis blocked attempt.")
+                    reason_flow.to_event(EventCategory.DEBUG)
+                return
+            if len(self._dependencies) != 0:
+                if reason_flow is not None:
+                    reason_flow.add_reason(
+                        f"Going through {len(self._dependencies)} dependencies")
+                for d in self._dependencies:
+                    dep: Depender = self.to_depender()
+                    rf = None
+                    try:
+                        d._dependers.remove(dep)
+                        if reason_flow is not None:
+                            reason_flow.add_reason(
+                                f"Removed self ({self.name}) from {d.name} as depender")
+                            rf = reason_flow.split()
+                    except ValueError:
+                        if reason_flow is not None:
+                            reason_flow.add_reason(
+                                f"Self ({self.name}) not present at {d.name} as depender")
+                            rf = reason_flow.split()
+                    finally:
+                        d.refresh_state(reason_flow=rf)
+
         if self._set_hardware_io(new_state, reason_flow=reason_flow):
             if not new_state and self._last_switch != 0:
+                # Needed for switch off after initialization
                 self._active_time_seconds += int(time.time()) - \
                     self._last_switch
             self._last_switch = int(time.time())
-            if self._state != new_state:
-                if reason_flow is not None:
-                    reason_flow.add_reason(
-                        f"{self.name.capitalize()} switched to {new_state}")
-                    reason_flow.update_name()
-                else:
-                    Event(comment=f"{self.name.capitalize()} switched to {new_state}",
-                          event_category=EventCategory.NEUTRAL).store()
+            if reason_flow is not None:
+                reason_flow.add_reason(
+                    f"{self.name.capitalize()} switched to '{new_state}'")
+                reason_flow.update_name()
+            else:
+                Event(comment=f"{self.name.capitalize()} switched to '{new_state}'",
+                      event_category=EventCategory.NEUTRAL).store()
             self._state = new_state
+
         return
