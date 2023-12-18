@@ -141,7 +141,11 @@ class SMLSerialParser:
             if self.timer is not None:
                 self.timer = None
             if self.serial_port.is_open:
-                self.serial_port.close()
+                try:
+                    self.serial_port.close()
+                except OSError:
+                    # Error if a serial was closed from "the outside". Dont know whats happening...
+                    pass
 
     @staticmethod
     def signed_int(hex_str: bytes) -> int:
