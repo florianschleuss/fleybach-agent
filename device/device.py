@@ -7,6 +7,7 @@ import yaml
 import socketio
 
 from utils.auth import JWTValidator
+from utils.delayTimer import DelayTimer
 from utils.event import Event, EventCategory
 from utils.logging import format_seconds_to_mm_ss, get_module_logger
 from utils.mail import AlertEmail, EmailSender
@@ -347,9 +348,11 @@ def _check_power_component(rf: ReasonFlow) -> bool:
 
 
 def startup_check() -> None:
-    rf: ReasonFlow = ReasonFlow(name="Startup checks")
-    _check_temperature_component(rf)
-    _check_power_component(rf)
+    rf: ReasonFlow = ReasonFlow(name="Startup checks", auto_store_seconds=20)
+    tc = _check_temperature_component(rf)
+    pc = _check_power_component(rf)
+    if not pc or not tc:
+        DelayTimer(3600, startup_check)
     rf.to_event(EventCategory.INFO)
     return
 
