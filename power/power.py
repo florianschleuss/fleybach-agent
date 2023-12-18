@@ -1,6 +1,5 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
-import logging
 import os
 import threading
 import time
@@ -16,7 +15,7 @@ from sml import SMLSerialParser
 from sma.register import Register, registers as sma_registers
 from utils.auth import JWTValidator
 from utils.logging import format_seconds_to_mm_ss, get_module_logger
-from utils.sensor import ModbusRegister, SensorConfig
+from utils.sensor import ModbusRegister, Sensor, SensorConfig
 
 logger = get_module_logger()
 
@@ -65,7 +64,7 @@ def update_sensor(id: str, name: str, value: Union[int, float], unit: str, type:
     return False  # TODO Validation of success
 
 
-def batch_update_sensor(sensors_list: List[Dict]):
+def batch_update_sensor(sensors_list: List[Sensor]):
     if len(sensors_list) == 0:
         return
     jwt.v()
@@ -75,7 +74,7 @@ def batch_update_sensor(sensors_list: List[Dict]):
         }, headers={'x-access-token': jwt.token._token})
     except r.exceptions.ConnectionError:
         for update_sensor in sensors_list:
-            sensor = config.get_sensor(update_sensor['id'])
+            sensor = config.get_sensor(update_sensor.device_id)
             sensor.present_in_database = False
     return False  # TODO Validation of success
 
