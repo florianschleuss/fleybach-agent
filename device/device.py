@@ -86,8 +86,12 @@ class DeviceController:
                                 device.rest_active_time_seconds),
             reverse=not reverse)
         if reason_flow is not None:
+            if len(devices) == 0:
+                reason_flow.add_reason(
+                    f"No relevant devices in list").to_event(EventCategory.DEBUG)
+                return devices
             reason_flow.add_reason(
-                f"Relevant devices in state '{state}' are {[d.name for d in devices]} (reverse: {reverse})")
+                f"Relevant devices in state '{state}' are {[d.name for d in devices]}")
         return devices
 
     def _active_time_deadline_check(self,
