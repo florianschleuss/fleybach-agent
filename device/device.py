@@ -226,6 +226,28 @@ class DeviceController:
             new_devices[rd.name] = rd
         return new_devices
 
+    @staticmethod
+    def is_within_x_hours_range(target_time: datetime.time, x_hours: int) -> bool:
+        """
+        Check if the current time is within a specified number of hours around the given time.
+
+        :param target_time (datetime): The target time to check.
+        :param x_hours (int): The number of hours for the range.
+
+        :return: True if the target time is within the specified hours range from the current time, False otherwise.
+        """
+        # Get the current time
+        current_time = datetime.datetime.now().time()
+
+        # Calculate the custom time window
+        custom_window_start_time = (datetime.datetime.combine(
+            datetime.datetime.today(), current_time) + datetime.timedelta(hours=x_hours)).time()
+        custom_window_end_time = (datetime.datetime.combine(
+            datetime.datetime.today(), current_time) + datetime.timedelta(hours=x_hours)).time()
+
+        # Check if the target time is within the specified hours range
+        return custom_window_start_time <= target_time <= custom_window_end_time
+
     def tick(self,
              current_power_consumption: float) -> None:
         """
@@ -272,7 +294,7 @@ class DeviceController:
         # Deadline check
         if DEADLINE_CHECK_TIME is not None:
             check_time = datetime.datetime.now().time()
-            if DEADLINE_CHECK_TIME < check_time and self._deadline_check_last_run < time.time()-12*60*60:
+            if self.is_within_x_hours_range(DEADLINE_CHECK_TIME, 1) and DEADLINE_CHECK_TIME < check_time and self._deadline_check_last_run < time.time()-12*60*60:
                 self._active_time_deadline_check(
                     reason_flow=ReasonFlow('Deadline check init'))
                 self._deadline_check_last_run = time.time()
