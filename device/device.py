@@ -385,10 +385,14 @@ def get_power_consumption() -> float:
     If local component is present gets the data from there.
     Fallback is to collect the data from the DB in the backend.
     """
+    global local_power_component
     if local_power_component:
         get = requests.get(url="http://power/power")
-        sensors: Dict[str, float] = get.json()['sensors']
-        return float(sensors['total'])
+        if get.status_code == 200:
+            sensors: Dict[str, float] = get.json()['sensors']
+            return float(sensors['total'])
+        else:
+            local_power_component = False
 
     jwt.v()
     get = requests.get(
@@ -404,6 +408,7 @@ def get_power_consumption() -> float:
 
 
 def get_temperatures() -> Dict[str, float]:
+    global local_temperature_component
     if local_temperature_component:
         # TODO prioritize local component
         return {}
@@ -412,7 +417,7 @@ def get_temperatures() -> Dict[str, float]:
     get = requests.get(
         f"https://api.florianschleuss.de/sensor/sensors/type/temperature?customer_id={jwt.token.customer_id}",
         headers={'x-access-token': jwt.token._token})
-    if get.status_code is not 200:
+    if get.status_code != 200:
         raise ConnectionError(
             "API request decliend (status_code:{get.status_code})")
     if get.json() is None:
