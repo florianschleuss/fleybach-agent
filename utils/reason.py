@@ -2,7 +2,7 @@ import copy
 from typing import List, Optional, TypeVar
 from utils.delayTimer import DelayTimer
 
-from utils.event import Event, EventCategory, EventType
+from utils.event import Event, EventSeverity, EventType
 
 ReasonFlow = TypeVar('ReasonFlow')  # type: ignore
 
@@ -24,19 +24,23 @@ class Reason:
 class ReasonFlow:
     def __init__(self,
                  name: str,
+                 initiator: str,
                  initial_comment: Optional[str] = None,
                  auto_store_seconds: Optional[int] = 1,
-                 auto_store_event_category: EventCategory = EventCategory.NEUTRAL):
+                 auto_store_event_severity: EventSeverity = EventSeverity.NEUTRAL):
         """
         Initializes ReasonFlow
 
         :param name:
         :param initial_comment:
         :param auto_store_seconds: If 'None' disables auto-store. Else seconds of no-reason-add until auto-store
-        :param auto_store_event_category: Category in which the event will be auto-stored
+        :param auto_store_event_severity: Category in which the event will be auto-stored
         """
         # Name to describe the reason
         self.name = name
+
+        # Device or Process which initiated the RF
+        self.initiator = initiator
 
         # First element of the ReasonFlow as an entry point.
         self.head: Optional[Reason] = None
@@ -49,7 +53,7 @@ class ReasonFlow:
             self._auto_store_timer = DelayTimer(timeout=auto_store_seconds,
                                                 userHandler=self.to_event,
                                                 kwargs={
-                                                    'event_category': auto_store_event_category}
+                                                    'event_severity': auto_store_event_severity}
                                                 )
 
         # Initiate with immediate reason
@@ -161,7 +165,6 @@ class ReasonFlow:
         if restore_timer := self._auto_store_timer is not None:
             self._auto_store_timer.stop()
             timer_seconds = self._auto_store_timer.timeout
-            timer_handler = self._auto_store_timer.handler
             timer_args = self._auto_store_timer._args
             timer_kwargs = self._auto_store_timer._kwargs
         self._auto_store_timer = None
@@ -180,15 +183,18 @@ class ReasonFlow:
         return cp
 
     def to_event(self,
-                 event_category: EventCategory,
+                 event_severity: EventSeverity,
+                 initiator: Optional[str] = None,
                  immediate_store: bool = True) -> Event:
         """
         Create an Event from the ReasonFlow.
 
-        :param event_category: Set the event type of the result.
+        :param event_severity: Set the event type of the result.
 
         :return: An Event object combining all reasons.
         """
+        if initiator is None:
+            initiator = self.initiator
         comment: str = self.name
         details: List[str] = []
         current_reason = self.head
@@ -200,13 +206,15 @@ class ReasonFlow:
             current_reason = current_reason.next
         if self._event is None:
             self._event = Event(comment=comment,
+                                initiator=initiator,
                                 details='\n'.join(details),
-                                event_category=event_category,
+                                event_severity=event_severity,
                                 event_type=EventType.REASONFLOW)
         else:
             self._event.comment = comment
+            self._event.initiator = initiator
             self._event.details = '\n'.join(details)
-            self._event.event_category = event_category
+            self._event.event_severity = event_severity
         if immediate_store:
             self._event.store()
             if self._auto_store_timer is not None:

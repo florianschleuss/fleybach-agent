@@ -8,7 +8,7 @@ import socketio
 
 from utils.auth import JWTValidator
 from utils.delayTimer import DelayTimer
-from utils.event import Event, EventCategory
+from utils.event import Event, EventSeverity
 from utils.logging import format_seconds_to_mm_ss, get_module_logger
 from utils.mail import AlertEmail, EmailSender
 from utils.reason import ReasonFlow
@@ -89,7 +89,7 @@ class DeviceController:
         if reason_flow is not None:
             if len(devices) == 0:
                 reason_flow.add_reason(
-                    f"No relevant devices in list").to_event(EventCategory.DEBUG)
+                    f"No relevant devices in list").to_event(EventSeverity.DEBUG)
                 return devices
             reason_flow.add_reason(
                 f"Relevant devices in state '{state}' are {[d.name for d in devices]}")
@@ -112,8 +112,9 @@ class DeviceController:
                 devices_runtime_info.append(
                     f"  {d.name} ran for {format_seconds_to_mm_ss(d.active_time_seconds)} today. Min. active time fullfiled")
         Event(comment='Deadline check runs',
+              initiator='Device Component',
               details='\n'.join(devices_runtime_info),
-              event_category=EventCategory.INFO).store()
+              event_severity=EventSeverity.INFO).store()
 
         # Min. active time checking
         for d in self._devices.values():
@@ -177,6 +178,7 @@ class DeviceController:
 
         reason_flow: ReasonFlow = ReasonFlow(
             name=f"Manual switch at {datetime.datetime.now()}",
+            initiator=device.name.replace('_', ' ').title(),
             initial_comment=f"{device.name.capitalize()} switched by '{user}'")
         to_value: bool = new_state if new_state is not None else not device.state
         set_value: bool = device.set_state(new_state=to_value,
@@ -260,6 +262,7 @@ class DeviceController:
         # ReasonFlow to store all decisions made througout the process
         reason_flow: ReasonFlow = ReasonFlow(
             name=f"Tick at {datetime.datetime.now()}",
+            initiator='Device Component',
             initial_comment=f"Tick with {available_power} available power")
 
         # Not enough power present
@@ -296,7 +299,8 @@ class DeviceController:
             check_time = datetime.datetime.now().time()
             if self.is_within_x_hours_range(DEADLINE_CHECK_TIME, 1) and DEADLINE_CHECK_TIME < check_time and self._deadline_check_last_run < time.time()-12*60*60:
                 self._active_time_deadline_check(
-                    reason_flow=ReasonFlow('Deadline check init'))
+                    reason_flow=ReasonFlow('Deadline check init',
+                                           initiator='Device Component',))
                 self._deadline_check_last_run = time.time()
 
     def temperature_tick(self, temperatures: Dict[str, float]) -> None:
@@ -322,6 +326,7 @@ class DeviceController:
                 if not tss.is_safe(temperatures[tss.sensor_name]):
                     rf: ReasonFlow = ReasonFlow(
                         name=f"Temperature safety",
+                        initiator='Device Component',
                         initial_comment=f"Temperature safety triggered at {temperatures[tss.sensor_name]} for {format_seconds_to_mm_ss(tss.duration_seconds)}")
                     device.set_state(
                         new_state=True,
@@ -370,12 +375,13 @@ def _check_power_component(rf: ReasonFlow) -> bool:
 
 
 def startup_check() -> None:
-    rf: ReasonFlow = ReasonFlow(name="Startup checks", auto_store_seconds=20)
+    rf: ReasonFlow = ReasonFlow(
+        name="Startup checks", auto_store_seconds=20, initiator='Device Component')
     tc = _check_temperature_component(rf)
     pc = _check_power_component(rf)
     if not pc or not tc:
         DelayTimer(3600, startup_check)
-    rf.to_event(EventCategory.INFO)
+    rf.to_event(EventSeverity.INFO)
     return
 
 
@@ -402,7 +408,9 @@ def get_power_consumption() -> float:
         raise ConnectionError("No data was returned")
     data: Dict = get.json()['data'][0]
     if data['lastModified'] + 30 < time.time():
-        # TODO Alert
+        Event("Power value received from backend is not up to date",
+              event_severity=EventSeverity.IMPORTANT,
+              initiator='Device Component').store()
         pass
     return float(data['value'])
 
@@ -426,7 +434,10 @@ def get_temperatures() -> Dict[str, float]:
     temps = {}
     for item in data:
         if item['lastModified'] + 30 < time.time():
-            # TODO Alert
+            Event("Temperature value received from backend is not up to date",
+                  event_severity=EventSeverity.IMPORTANT,
+                  details=f"Sensor name: '{item['name']}'",
+                  initiator='Device Component')
             continue
         temps[item['name']] = float(item['value'])
 

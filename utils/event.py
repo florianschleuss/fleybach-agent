@@ -8,7 +8,7 @@ from utils.logging import get_module_logger
 logger = get_module_logger(linebreak=True)
 
 
-class EventCategory(Enum):
+class EventSeverity(Enum):
     """
     Severity of the event
     """
@@ -31,28 +31,32 @@ class EventType(Enum):
 class Event:
     def __init__(self,
                  comment: str,
-                 event_category: EventCategory,
+                 initiator: str,
+                 event_severity: EventSeverity,
                  event_type: EventType = EventType.DEFAULT,
                  details: Optional[str] = None):
         """
         Initialize an Event object.
 
         :param comment: A description or comment about the event.
-        :param event_category: The type of the event.
+        :param event_severity: The severity of the event.
+        :param event_type: The type of the event.
         """
         self.timestamp: datetime = datetime.now()
+        self.initiator: str = initiator
         self.comment: str = comment
         self.details: Optional[str] = details
-        self.event_category: EventCategory = event_category
+        self.event_severity: EventSeverity = event_severity
         self.event_type: EventType = event_type
         self._stored: bool = False
         self._tags: List[str] = []
 
     @property
     def tags(self):
-        tags = [str(self.event_category)]
+        tags = [str(self.event_severity.value.capitalize())]
         if self.event_type != EventType.DEFAULT:
-            tags.append(str(self.event_type))
+            tags.append(str(self.event_type.value.capitalize()))
+        tags.append(self.initiator)
         return self._tags + tags
 
     def add_tag(self, tag: str):
@@ -75,10 +79,10 @@ class Event:
             "NEUTRAL": "•",
             "INFO": "ℹ",
         }
-        formatted_time = self.timestamp.strftime("%d.%m.%Y %H:%M:%S")
+        # formatted_time = self.timestamp.strftime("%d.%m.%Y %H:%M:%S")
         # Default to ﹖ for unknown types
-        event_category_icon = ICONS.get(self.event_category.value, "﹖")
-        formatted_str: str = f"{event_category_icon}"
+        event_severity_icon = ICONS.get(self.event_severity.value, "﹖")
+        formatted_str: str = f"{event_severity_icon}"
         if self.event_type is EventType.REASONFLOW:
             formatted_str += f" ReasonFlow:"
         elif self.event_type is EventType.ERROR:
@@ -86,7 +90,7 @@ class Event:
         formatted_str += f" {self.comment}"
 
         if details and self.details is not None:
-            return f'{formatted_str}\n{self.details}'
+            return f'{formatted_str}\n{self.details}\n~ {self.initiator}'
         return formatted_str
 
     def store(self) -> None:
@@ -100,15 +104,15 @@ class Event:
             # Triggered by unittest -> print to console with detail
             logger.debug(self.to_string(details=True))
         else:
-            if self.event_category == EventCategory.DEBUG:
+            if self.event_severity == EventSeverity.DEBUG:
                 logger.debug(self.to_string(details=True))
-            elif self.event_category == EventCategory.INFO:
+            elif self.event_severity == EventSeverity.INFO:
                 logger.info(self.to_string(details=True))
-            elif self.event_category == EventCategory.NEUTRAL:
+            elif self.event_severity == EventSeverity.NEUTRAL:
                 logger.info(self.to_string(details=True))
-            elif self.event_category == EventCategory.IMPORTANT:
+            elif self.event_severity == EventSeverity.IMPORTANT:
                 logger.warning(self.to_string(details=True))
-            elif self.event_category == EventCategory.CRITICAL:
+            elif self.event_severity == EventSeverity.CRITICAL:
                 logger.critical(self.to_string(details=True))
         # TODO store to db or print for debug
         self._stored = True

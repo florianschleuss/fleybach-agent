@@ -3,17 +3,17 @@ from typing import Dict, List, Optional, TypeVar
 
 import requests
 from requests.exceptions import ConnectionError
-from utils.event import EventCategory
+from utils.event import EventSeverity
 from utils.reason import ReasonFlow
 from utils.switchable.switchable import Switchable, TemperatureSafety
 
 import RPi.GPIO as GPIO
 GPIO.setwarnings(False)  # type: ignore
 
-PowerSwitchable = TypeVar('PowerSwitchable')
-LocalDevice = TypeVar('LocalDevice')
-RemoteDevice = TypeVar('RemoteDevice')
-RemoteDeviceType = TypeVar('RemoteDeviceType')
+PowerSwitchable = TypeVar('PowerSwitchable')  # type: ignore
+LocalDevice = TypeVar('LocalDevice')  # type: ignore
+RemoteDevice = TypeVar('RemoteDevice')  # type: ignore
+RemoteDeviceType = TypeVar('RemoteDeviceType')  # type: ignore
 GPIO.setmode(GPIO.BCM)  # type: ignore
 
 
@@ -232,10 +232,10 @@ class RemoteDevice(PowerSwitchable):
             if reason_flow is not None:
                 reason_flow.add_reason(
                     f"Connection error for {self.name} to host {self._host} trying to switch to '{state}'\n{e}")
-                reason_flow.to_event(EventCategory.IMPORTANT)
+                reason_flow.to_event(EventSeverity.IMPORTANT)
             return False
         if reason_flow is not None:
             reason_flow.add_reason(
                 f"Unsuccessful switching for {self.name} to host {self._host} trying to switch to '{state}'")
-            reason_flow.to_event(EventCategory.IMPORTANT)
+            reason_flow.to_event(EventSeverity.IMPORTANT)
         return False

@@ -4,7 +4,7 @@ import time
 from typing import Dict, List, Optional, TypeVar
 
 from utils.delayTimer import DelayTimer
-from utils.event import Event, EventCategory
+from utils.event import Event, EventSeverity
 from utils.reason import ReasonFlow
 
 Switchable = TypeVar('Switchable')  # type: ignore
@@ -324,7 +324,7 @@ class Switchable:
                                                      'user': user,
                                                      'reason_flow': reason_flow})
         # if reason_flow is not None:
-        #     reason_flow.to_event(event_category=EventCategory.NEUTRAL)
+        #     reason_flow.to_event(event_severity=EventCategory.NEUTRAL)
         return self._state
 
     def set_state(self,
@@ -406,7 +406,8 @@ class Switchable:
             self._last_switch = int(time.time())
         Event(
             comment=f"Reset routine run for {self.name}",
-            event_category=EventCategory.INFO
+            event_severity=EventSeverity.INFO,
+            initiator=self.name.replace('_', ' ').title()
         ).store()
         return
 
@@ -447,14 +448,14 @@ class Switchable:
                 if reason_flow is not None:
                     reason_flow.add_reason(
                         f"Re-Hysteresis blocked attempt.")
-                    reason_flow.to_event(EventCategory.DEBUG)
+                    reason_flow.to_event(EventSeverity.DEBUG)
                 return
 
             if self.max_active_time_pause():
                 if reason_flow is not None:
                     reason_flow.add_reason(
                         f"Max active time blocked attempt.")
-                    reason_flow.to_event(EventCategory.DEBUG)
+                    reason_flow.to_event(EventSeverity.DEBUG)
                 return
 
             if len(self._dependencies) != 0:
@@ -477,7 +478,7 @@ class Switchable:
                 if reason_flow is not None:
                     reason_flow.add_reason(
                         f"Hysteresis blocked attempt.")
-                    reason_flow.to_event(EventCategory.DEBUG)
+                    reason_flow.to_event(EventSeverity.DEBUG)
                 return
             if len(self._dependencies) != 0:
                 if reason_flow is not None:
@@ -512,7 +513,8 @@ class Switchable:
                 reason_flow.update_name()
             else:
                 Event(comment=f"{self.name.capitalize()} switched to '{new_state}'",
-                      event_category=EventCategory.NEUTRAL).store()
+                      event_severity=EventSeverity.NEUTRAL,
+                      initiator=self.name.replace('_', ' ').title()).store()
             self._state = new_state
 
         return

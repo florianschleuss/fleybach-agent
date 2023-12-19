@@ -14,6 +14,7 @@ from pymodbus.client.sync import ModbusTcpClient
 from sml import SMLSerialParser
 from sma.register import Register, registers as sma_registers
 from utils.auth import JWTValidator
+from utils.event import Event, EventSeverity, EventType
 from utils.logging import format_seconds_to_mm_ss, get_module_logger
 from utils.sensor import ModbusRegister, Sensor, SensorConfig
 
@@ -107,6 +108,9 @@ def get_inverter_data(name: str):
     except:
         logger.critical("Cannot connect to inverter")
         return
+    if not hasattr(response, 'registers'):
+        logger.warning("Malformed response from inverter")
+        return
     register.set_registers(response.registers)
     if register.is_null() or register.get_value() == -2147483648:
         # logger.debug(f"FAI: {register.name} {register.get_value()}")
@@ -154,7 +158,11 @@ def update_loop() -> None:
             for k, v in data.to_dict().items():
                 sensors.append(
                     {'id': 'pw-'+k, 'value': v, 'name': k})
-        # TODO Log failure
+        else:
+            Event("No power data from serial connection",
+                  initiator='Power Component',
+                  event_severity=EventSeverity.IMPORTANT,
+                  event_type=EventType.ERROR).store()
 
         batch_update_sensor(sensors_list=sensors)
         check_routines()

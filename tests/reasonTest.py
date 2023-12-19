@@ -11,18 +11,18 @@ parent_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.append(parent_dir)
 
 # fmt: off
-from utils.event import EventCategory  
+from utils.event import EventSeverity  
 from utils.reason import ReasonFlow  
 # fmt: on
 
 
 class TestReasonFlow(unittest.TestCase):
     def setUp(self):
-        self.rf = ReasonFlow(name="Test Flow")
+        self.rf = ReasonFlow(name="Test Flow", initiator='UnitTests')
 
     def test_initial_reason(self):
         self.rf = ReasonFlow(
-            name="Test Flow", initial_comment="Initial reason")
+            name="Test Flow", initial_comment="Initial reason", initiator='UnitTests')
         self.assertEqual(str(self.rf), "Test Flow\n  ⤷ Initial reason")
         self.rf.add_reason("Reason 1")
         self.assertEqual(
@@ -63,7 +63,7 @@ class TestReasonFlow(unittest.TestCase):
     def test_to_event(self):
         self.rf.add_reason("Reason 1")
         self.rf.add_reason("Reason 2")
-        event = self.rf.to_event(EventCategory.INFO, immediate_store=False)
+        event = self.rf.to_event(EventSeverity.INFO, immediate_store=False)
         now = datetime.now().strftime('%d.%m.%Y %H:%M:%S')
         expected_event_str = f"ℹ ReasonFlow: Test Flow"
         self.assertEqual(event.to_string(), expected_event_str)
