@@ -128,14 +128,15 @@ class LocalDevice(PowerSwitchable):
 
 
 class RemoteDeviceType(Enum):
+    DEFAULT = 'default'
     SONOFF = 'sonoff'
     TASMOTA = 'tasmota'
 
     @classmethod
     def from_str(cls, str: str) -> RemoteDeviceType:
-        if str.lower() == 'sonoff':
+        if 'sonoff' in str.lower():
             return cls.SONOFF
-        elif str.lower() == 'tasmota':
+        elif 'tasmota' in str.lower():
             return cls.TASMOTA
         raise Exception("No matching device type given")
 

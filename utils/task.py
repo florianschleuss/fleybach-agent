@@ -11,6 +11,7 @@ class Action(Enum):
     TIMER = 'timer'
     STATE = 'state'
     STATEALL = 'stateAll'
+    UPDATE = 'update'
 
     @staticmethod
     def from_str(action: str):
@@ -26,6 +27,8 @@ class Action(Enum):
             return Action.STATEALL
         elif action in ('state'):
             return Action.STATE
+        elif action in ('update'):
+            return Action.UPDATE
         else:
             raise Exception("No matching action")
 
@@ -54,10 +57,12 @@ class Task():
             return self.action in []
         if self.action in [Action.SWITCH, Action.OFF, Action.ON]:
             return all(k in self.action_args for k in ['user', 'deviceName'])
+        elif self.action == Action.TIMER:
+            return all(k in self.action_args for k in ['user', 'delaySeconds', 'state', 'deviceName'])
         elif self.action == Action.STATE:
             return all(k in self.action_args for k in ['details', 'deviceName'])
         elif self.action == Action.STATEALL:
             return all(k in self.action_args for k in ['details'])
-        elif self.action == Action.TIMER:
-            return all(k in self.action_args for k in ['user', 'delaySeconds', 'state', 'deviceName'])
+        elif self.action == Action.UPDATE:
+            return all(k in self.action_args for k in ['updates', 'deviceName'])
         return False

@@ -2,7 +2,7 @@ import datetime
 import requests
 import os
 import time
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 import yaml
 import socketio
 
@@ -12,7 +12,7 @@ from utils.event import Event, EventSeverity, EventType
 from utils.logging import format_seconds_to_mm_ss, get_module_logger
 from utils.mail import AlertEmail, EmailSender
 from utils.reason import ReasonFlow
-from utils.switchable.powerSwitchable import LocalDevice, PowerSwitchable, RemoteDevice
+from utils.switchable.powerSwitchable import LocalDevice, PowerSwitchable, RemoteDevice, RemoteDeviceType
 from utils.switchable.switchable import TemperatureSafety
 from utils.task import Action, Task
 from utils.transportModels import ReturnObject
@@ -32,6 +32,25 @@ jwt = JWTValidator(AUTH_URL, CUSTOMER_DOMAIN, CUSTOMER_SECRET)
 local_temperature_component = False
 local_power_component = False
 startup_check_values = {}
+
+
+def deep_update(mapping: Dict[str, Any], *updating_mappings: Dict[str, Any]) -> Dict[str, Any]:
+    old_mapping = mapping.copy()
+    for updating_mapping in updating_mappings:
+        for k, v in updating_mapping.items():
+            if k in old_mapping and isinstance(old_mapping[k], dict) and isinstance(v, dict):
+                old_mapping[k] = deep_update(old_mapping[k], v)
+            if k in old_mapping and isinstance(old_mapping[k], list) and isinstance(v, list):
+                if len(v) == 0:
+                    old_mapping[k] = []
+                if isinstance(v[0], dict):
+                    old_mapping[k] = [deep_update(
+                        old_mapping[k][ind], i) for ind, i in enumerate(v)]
+                else:
+                    old_mapping[k] = v
+            else:
+                old_mapping[k] = v
+    return old_mapping
 
 
 class DeviceController:
@@ -233,6 +252,42 @@ class DeviceController:
                 updating_device=devices.get(d['name'], None))  # type: ignore
             new_devices[rd.name] = rd
         return new_devices
+
+    def dump_config(self):
+        """
+        Dump the current devices to the configuration file.
+
+        :return: None
+        """
+        config_data = {
+            'local_devices': [],
+            'remote_devices': []
+        }
+        irrelevant_keys = [
+            'active_time_seconds'
+            'restart_timer'
+            'shutdown_timer'
+            'state',
+            'power_all']
+        default_local_device_data = LocalDevice(
+            name='-1', gpio=50, power=-1).to_dict()
+        default_remote_device_data = RemoteDevice(name='-1',
+                                                  power=-1, device_type=RemoteDeviceType.DEFAULT, host="-1").to_dict()
+
+        for device in self._devices.values():
+            device_data = device.to_dict()
+            if isinstance(device, LocalDevice):
+                config_data['local_devices'].append(
+                    {key: value for key, value in device_data.items() if value != default_local_device_data[key] and key not in irrelevant_keys})
+            elif isinstance(device, RemoteDevice):
+                config_data['remote_devices'].append(
+                    {key: value for key, value in device_data.items() if value != default_remote_device_data[key] and key not in irrelevant_keys})
+
+        with open(self._device_config_path, 'r') as file:
+            device_config: Dict = yaml.safe_load(file)
+        device_config = deep_update(device_config, config_data)
+        with open(self._device_config_path, 'w', encoding='utf-8') as file:
+            yaml.dump(device_config, file, sort_keys=False, allow_unicode=True)
 
     @staticmethod
     def is_within_x_hours_range(target_time: datetime.time, x_hours: int) -> bool:
@@ -527,6 +582,28 @@ def handle_task_event(data: dict):
         devices = dc.get_devices()
         details = task.action_args.get('details', False)
         return ReturnObject(status_code=200, data=[device.to_dict(full=details) for device in devices]).to_dict()
+    elif task.action is Action.UPDATE:
+        allowed_updates = ['power',
+                           'displayed_name',
+                           'displayed_description',
+                           'gpio',
+                           'hysteresis_seconds',
+                           're_hysteresis_seconds',
+                           'min_active_time_seconds',
+                           'shutdown_time_seconds',
+                           'host']
+        device = dc.get_device_by_name(task.action_args['deviceName'])
+        updates = task.action_args['updates']
+        for u in updates:
+            if (not 'key' in u) or (not 'value' in u):
+                continue
+            if not hasattr(device, u['key']):
+                continue
+            if u['key'] not in allowed_updates:
+                continue
+            setattr(device, u['key'], u['value'])
+        dc.dump_config()
+        return ReturnObject(status_code=200).to_dict()
 
     return ReturnObject(status_code=422, error_code='failedAction', message="The action was not successful. Refer to logs").to_dict()
 
