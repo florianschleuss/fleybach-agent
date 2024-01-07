@@ -31,6 +31,7 @@ jwt = JWTValidator(AUTH_URL, CUSTOMER_DOMAIN, CUSTOMER_SECRET)
 # Constants initialized at startup to store if components are present
 local_temperature_component = False
 local_power_component = False
+startup_check_values = {}
 
 
 class DeviceController:
@@ -247,13 +248,11 @@ class DeviceController:
         current_time = datetime.datetime.now().time()
 
         # Calculate the custom time window
-        custom_window_start_time = (datetime.datetime.combine(
-            datetime.datetime.today(), current_time) + datetime.timedelta(hours=x_hours)).time()
         custom_window_end_time = (datetime.datetime.combine(
-            datetime.datetime.today(), current_time) + datetime.timedelta(hours=x_hours)).time()
+            datetime.datetime.today(), target_time) + datetime.timedelta(hours=x_hours)).time()
 
         # Check if the target time is within the specified hours range
-        return custom_window_start_time <= target_time <= custom_window_end_time
+        return target_time <= current_time <= custom_window_end_time
 
     def tick(self,
              current_power_consumption: float) -> None:
@@ -303,9 +302,9 @@ class DeviceController:
         # Deadline check
         if DEADLINE_CHECK_TIME is not None:
             check_time = datetime.datetime.now().time()
-            if self.is_within_x_hours_range(DEADLINE_CHECK_TIME, 1) and DEADLINE_CHECK_TIME < check_time and self._deadline_check_last_run < time.time()-12*60*60:
+            if self.is_within_x_hours_range(DEADLINE_CHECK_TIME, 1) and self._deadline_check_last_run < time.time()-12*60*60:
                 self._active_time_deadline_check(
-                    reason_flow=ReasonFlow('Deadline check init',
+                    reason_flow=ReasonFlow('Deadline check',
                                            initiator='Device Component',))
                 self._deadline_check_last_run = time.time()
 
