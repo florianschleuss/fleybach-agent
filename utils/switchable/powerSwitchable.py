@@ -88,17 +88,17 @@ class LocalDevice(PowerSwitchable):
         if 'power_off_tolerance' in object:
             device._power_off_tolerance = object['power_off_tolerance']
         if 'shutdown_time_seconds' in object:
-            device._shutdown_time_seconds = object['shutdown_time_seconds']
+            device.shutdown_time_seconds = object['shutdown_time_seconds']
         if 'max_active_time_seconds' in object:
-            device._max_active_time_seconds = object['max_active_time_seconds']
+            device.max_active_time_seconds = object['max_active_time_seconds']
         if 'min_active_time_seconds' in object:
-            device._min_active_time_seconds = object['min_active_time_seconds']
+            device.min_active_time_seconds = object['min_active_time_seconds']
         if 'hysteresis_seconds' in object:
-            device._hysteresis_seconds = object['hysteresis_seconds']
+            device.hysteresis_seconds = object['hysteresis_seconds']
         if 're_hysteresis_seconds' in object:
-            device._re_hysteresis_seconds = object['re_hysteresis_seconds']
+            device.re_hysteresis_seconds = object['re_hysteresis_seconds']
         if 'importance' in object:
-            device._importance = object['importance']
+            device.importance = object['importance']
         if 'temperature_safety' in object:
             device._temperature_safety = TemperatureSafety.from_list(
                 object['temperature_safety'])
@@ -189,17 +189,17 @@ class RemoteDevice(PowerSwitchable):
         if 'power_off_tolerance' in object:
             device._power_off_tolerance = object['power_off_tolerance']
         if 'shutdown_time_seconds' in object:
-            device._shutdown_time_seconds = object['shutdown_time_seconds']
+            device.shutdown_time_seconds = object['shutdown_time_seconds']
         if 'max_active_time_seconds' in object:
-            device._max_active_time_seconds = object['max_active_time_seconds']
+            device.max_active_time_seconds = object['max_active_time_seconds']
         if 'min_active_time_seconds' in object:
-            device._min_active_time_seconds = object['min_active_time_seconds']
+            device.min_active_time_seconds = object['min_active_time_seconds']
         if 'hysteresis_seconds' in object:
-            device._hysteresis_seconds = object['hysteresis_seconds']
+            device.hysteresis_seconds = object['hysteresis_seconds']
         if 're_hysteresis_seconds' in object:
-            device._re_hysteresis_seconds = object['re_hysteresis_seconds']
+            device.re_hysteresis_seconds = object['re_hysteresis_seconds']
         if 'importance' in object:
-            device._importance = object['importance']
+            device.importance = object['importance']
         if 'temperature_safety' in object:
             device._temperature_safety = TemperatureSafety.from_list(
                 object['temperature_safety'])

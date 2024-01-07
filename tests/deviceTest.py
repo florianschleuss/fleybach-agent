@@ -65,7 +65,7 @@ class TestDevice(unittest.TestCase):
             state=False, reverse=False)
         self.assertEqual(devices, [device2, device1])
 
-        device1._importance = 1
+        device1.importance = 1
         devices = self.dc._devices_in_relevance_order(
             state=False, reverse=False)
         self.assertEqual(devices, [device1, device2])

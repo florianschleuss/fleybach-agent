@@ -103,7 +103,7 @@ class DeviceController:
                    if device._state == state]
         devices = sorted(
             devices,
-            key=lambda device: (device._importance,
+            key=lambda device: (device.importance,
                                 device.rest_active_time_seconds),
             reverse=not reverse)
         if reason_flow is not None:
@@ -264,9 +264,9 @@ class DeviceController:
             'remote_devices': []
         }
         irrelevant_keys = [
-            'active_time_seconds'
-            'restart_timer'
-            'shutdown_timer'
+            'active_time_seconds',
+            'restart_timer',
+            'shutdown_timer',
             'state',
             'power_all']
         default_local_device_data = LocalDevice(
@@ -276,12 +276,12 @@ class DeviceController:
 
         for device in self._devices.values():
             device_data = device.to_dict()
+            filtered_device_data = {
+                key: value for key, value in device_data.items() if not key in irrelevant_keys}
             if isinstance(device, LocalDevice):
-                config_data['local_devices'].append(
-                    {key: value for key, value in device_data.items() if value != default_local_device_data[key] and key not in irrelevant_keys})
+                config_data['local_devices'].append(filtered_device_data)
             elif isinstance(device, RemoteDevice):
-                config_data['remote_devices'].append(
-                    {key: value for key, value in device_data.items() if value != default_remote_device_data[key] and key not in irrelevant_keys})
+                config_data['remote_devices'].append(filtered_device_data)
 
         with open(self._device_config_path, 'r') as file:
             device_config: Dict = yaml.safe_load(file)
@@ -591,7 +591,8 @@ def handle_task_event(data: dict):
                            're_hysteresis_seconds',
                            'min_active_time_seconds',
                            'shutdown_time_seconds',
-                           'host']
+                           'host',
+                           'importance']
         device = dc.get_device_by_name(task.action_args['deviceName'])
         updates = task.action_args['updates']
         for u in updates:

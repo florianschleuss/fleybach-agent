@@ -196,28 +196,28 @@ class Switchable:
         self._active_time_seconds: int = 0
 
         # Maximum time per day of active in sec
-        self._max_active_time_seconds: int = max_active_time_seconds
+        self.max_active_time_seconds: int = max_active_time_seconds
 
         # Minimum time per day of active in sec
-        self._min_active_time_seconds: int = min_active_time_seconds
+        self.min_active_time_seconds: int = min_active_time_seconds
 
         # Timestamp of last switch in sec
         self._last_switch: int = 0
 
         # Automatic shutdown after x seconds
-        self._shutdown_time_seconds: int = shutdown_time_seconds
+        self.shutdown_time_seconds: int = shutdown_time_seconds
         self._shutdown_timer: Optional[DelayTimer] = None
         # Internal variable to keep track of a possible restart_timer
         self._restart_timer: Optional[DelayTimer] = None
 
         # Min. active between on->off in sec
-        self._hysteresis_seconds: int = hysteresis_seconds
+        self.hysteresis_seconds: int = hysteresis_seconds
 
         # Min. deactive between off->on in sec
-        self._re_hysteresis_seconds: int = re_hysteresis_seconds
+        self.re_hysteresis_seconds: int = re_hysteresis_seconds
 
         # Value to describe if the SW is more or less important than others
-        self._importance: int = importance
+        self.importance: int = importance
 
         # Temperature information on which it is safe to operate
         self._temperature_safety: Optional[TemperatureSafety] = temperature_safety
@@ -231,7 +231,7 @@ class Switchable:
         """
         If re_hysteresis from self or any dependcies is blocking switch on
         """
-        if self._last_switch > (time.time() - self._re_hysteresis_seconds):
+        if self._last_switch > (time.time() - self.re_hysteresis_seconds):
             return True
         return any([d.re_hysteresis_timeout() for d in self._dependencies])
 
@@ -239,7 +239,7 @@ class Switchable:
         """
         If hysteresis from self or any dependcies is blocking switch off
         """
-        if self._last_switch > (time.time() - self._hysteresis_seconds):
+        if self._last_switch > (time.time() - self.hysteresis_seconds):
             return True
         return any([d.hysteresis_timeout() for d in self._dependencies])
 
@@ -247,7 +247,7 @@ class Switchable:
         """
         If max_active_time from self or any dependcies is blocking switch on
         """
-        if self._max_active_time_seconds <= self.active_time_seconds:
+        if self.max_active_time_seconds <= self.active_time_seconds:
             return True
         return any([d.max_active_time_pause() for d in self._dependencies])
 
@@ -276,14 +276,14 @@ class Switchable:
         if self._restart_timer is not None:
             self._restart_timer.stop()
             self._restart_timer = None
-        if self._shutdown_time_seconds != 0 or timer_seconds is not None:
+        if self.shutdown_time_seconds != 0 or timer_seconds is not None:
             dtrf = None
             if reason_flow is not None:
                 reason_flow.add_reason(
-                    f"Automatic shutdown at {(datetime.now() + timedelta(seconds=self._shutdown_time_seconds if timer_seconds is None else timer_seconds)).strftime('%d.%m.%Y %H:%M:%S')} UTC")
+                    f"Automatic shutdown at {(datetime.now() + timedelta(seconds=self.shutdown_time_seconds if timer_seconds is None else timer_seconds)).strftime('%d.%m.%Y %H:%M:%S')} UTC")
                 dtrf = reason_flow.split(
-                    pause_auto_store=self._shutdown_time_seconds if timer_seconds is None else timer_seconds)
-            self._shutdown_timer = DelayTimer(timeout=self._shutdown_time_seconds if timer_seconds is None else timer_seconds,
+                    pause_auto_store=self.shutdown_time_seconds if timer_seconds is None else timer_seconds)
+            self._shutdown_timer = DelayTimer(timeout=self.shutdown_time_seconds if timer_seconds is None else timer_seconds,
                                               userHandler=self.set_state,
                                               kwargs={'new_state': False,
                                                       'user': user,
@@ -381,20 +381,20 @@ class Switchable:
 
         :return: The rest time the device needs to be active
         '''
-        rest_time: int = self._max_active_time_seconds - self.active_time_seconds
-        if self._min_active_time_seconds < self.active_time_seconds and rest_time < 0:
+        rest_time: int = self.max_active_time_seconds - self.active_time_seconds
+        if self.min_active_time_seconds < self.active_time_seconds and rest_time < 0:
             return 0
-        return self._min_active_time_seconds - self.active_time_seconds
+        return self.min_active_time_seconds - self.active_time_seconds
 
     def to_dict(self, full=False) -> Dict:
         device_dict = {'name': self.name,
                        'state': self.state,
-                       'max_active_time_seconds': self._max_active_time_seconds,
-                       'min_active_time_seconds': self._min_active_time_seconds,
-                       'hysteresis_seconds': self._hysteresis_seconds,
-                       're_hysteresis_seconds': self._re_hysteresis_seconds,
-                       'shutdown_time_seconds': self._shutdown_time_seconds,
-                       'importance': self._importance,
+                       'max_active_time_seconds': self.max_active_time_seconds,
+                       'min_active_time_seconds': self.min_active_time_seconds,
+                       'hysteresis_seconds': self.hysteresis_seconds,
+                       're_hysteresis_seconds': self.re_hysteresis_seconds,
+                       'shutdown_time_seconds': self.shutdown_time_seconds,
+                       'importance': self.importance,
                        'active_time_seconds': self.active_time_seconds,
                        'displayed_description': self.displayed_description,
                        'displayed_name': self.displayed_name}

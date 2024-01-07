@@ -53,7 +53,7 @@ class TestSwitchable(unittest.TestCase):
         self.assertEqual(self.sw.active_time_seconds, 0)
 
     def test_rest_active_time(self):
-        self.sw._min_active_time_seconds = 10
+        self.sw.min_active_time_seconds = 10
         self.assertEqual(self.sw.rest_active_time_seconds, 10)
         self.sw.set_state(True, user='Test')
         self.assertEqual(self.sw.rest_active_time_seconds, 10)
@@ -139,7 +139,7 @@ class TestSwitchable(unittest.TestCase):
 
     def test_timer(self):
         # Test automatic and manual timer
-        self.sw._shutdown_time_seconds = 1
+        self.sw.shutdown_time_seconds = 1
         self.swT = Switchable(name='Test widget true')
         self.swF = Switchable(name='Test widget false')
         self.swF.set_state(True, user='TestFalse')
@@ -223,7 +223,7 @@ class TestLocalDevice(unittest.TestCase):
         obj['gpio'] = 50
         osw = LocalDevice.from_object(obj)
         self.assertEqual(osw.name, "TestDevice")
-        self.assertEqual(osw._importance, 2)
+        self.assertEqual(osw.importance, 2)
         self.assertEqual(osw.power, 123)
         self.assertEqual(osw.power_all, 123)
         self.assertEqual(osw._gpio, 50)
@@ -279,7 +279,7 @@ class TestRemoteDevice(unittest.TestCase):
         self.assertEqual(osw.power, 123)
         self.assertEqual(osw.power_all, 123)
         self.assertEqual(osw._host, "no-host")
-        self.assertEqual(osw._importance, 2)
+        self.assertEqual(osw.importance, 2)
         self.assertEqual(osw._device_type, RemoteDeviceType.TASMOTA)
 
         # Test dependency injection

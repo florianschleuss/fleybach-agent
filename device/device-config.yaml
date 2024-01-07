@@ -24,6 +24,9 @@ local_devices:
     interval_seconds: 900
     duration_seconds: 90
     sensor_name: air
+  max_active_time_seconds: 86400
+  importance: 0
+  power_off_tolerance: 0
 - name: heat_pump
   displayed_name: Wärmepumpe
   displayed_description: ''
@@ -31,16 +34,37 @@ local_devices:
   power: 20000
   dependencies:
   - pump
+  max_active_time_seconds: 86400
+  min_active_time_seconds: 0
+  hysteresis_seconds: 0
+  re_hysteresis_seconds: 0
+  shutdown_time_seconds: 0
+  importance: 0
+  power_off_tolerance: 0
 - name: twizy
   displayed_name: Twizy Tankstelle
   displayed_description: ''
   power: 1500
   gpio: 1
+  max_active_time_seconds: 86400
+  min_active_time_seconds: 0
+  hysteresis_seconds: 0
+  re_hysteresis_seconds: 0
+  shutdown_time_seconds: 0
+  importance: 0
+  power_off_tolerance: 0
 - name: charging_point
   displayed_name: Ladestation
   displayed_description: ''
   power: 150
   gpio: 19
+  hysteresis_seconds: 0
+  importance: 0
+  max_active_time_seconds: 86400
+  min_active_time_seconds: 0
+  re_hysteresis_seconds: 0
+  shutdown_time_seconds: 0
+  power_off_tolerance: 0
 remote_devices:
 - name: mobile_charging_station
   displayed_name: Mobile Ladestation
@@ -48,3 +72,10 @@ remote_devices:
   host: iot-sonoff-2
   device_type: RemoteDeviceType.SONOFF
   power: 100
+  max_active_time_seconds: 86400
+  min_active_time_seconds: 0
+  hysteresis_seconds: 0
+  re_hysteresis_seconds: 0
+  shutdown_time_seconds: 0
+  importance: 0
+  power_off_tolerance: 0
