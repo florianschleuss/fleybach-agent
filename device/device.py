@@ -132,8 +132,9 @@ class DeviceController:
                 if reason_flow is not None:
                     reason_flow.add_reason(
                         f"{d.name.replace('_', '-').title()} ran for {format_seconds_to_mm_ss(d.active_time_seconds)} today. Min. active time fullfiled")
-        if reason_flow is not None:
-            reason_flow.to_event(event_severity=EventSeverity.INFO)
+        irf = reason_flow.split() if reason_flow is not None else None
+        if irf is not None:
+            irf.to_event(event_severity=EventSeverity.INFO)
 
         # Min. active time checking
         for d in self._devices.values():
@@ -141,10 +142,12 @@ class DeviceController:
                 break
             drf = reason_flow.split() if reason_flow is not None else None
             d.set_state(True,
-                        user='DeadlineCheck',
+                        user='Deadline-Check',
                         timer_seconds=d.rest_active_time_seconds,
                         reason_flow=drf)
-            # Log event
+        if reason_flow is not None:
+            if reason_flow._auto_store_timer is not None:
+                reason_flow._auto_store_timer.stop()
         return
 
     def _available_power(self, current_power_consumption: float):
@@ -360,7 +363,7 @@ class DeviceController:
             if self.is_within_x_hours_range(DEADLINE_CHECK_TIME, 1) and self._deadline_check_last_run < time.time()-12*60*60:
                 self._active_time_deadline_check(
                     reason_flow=ReasonFlow('Deadline check',
-                                           initiator='Device Component',))
+                                           initiator='Deadline check'))
                 self._deadline_check_last_run = time.time()
 
     def temperature_tick(self, temperatures: Dict[str, float]) -> None:
@@ -385,8 +388,8 @@ class DeviceController:
                     continue
                 if not tss.is_safe(temperatures[tss.sensor_name]):
                     rf: ReasonFlow = ReasonFlow(
-                        name=f"Temperature safety",
-                        initiator='Device Component',
+                        name=f"{device.name.capitalize()} temperature safety",
+                        initiator='Temperature safety',
                         initial_comment=f"Temperature safety triggered at {temperatures[tss.sensor_name]} for {format_seconds_to_mm_ss(tss.duration_seconds)}")
                     device.set_state(
                         new_state=True,
