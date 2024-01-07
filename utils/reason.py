@@ -1,5 +1,6 @@
 import copy
 from typing import List, Optional, TypeVar
+
 from utils.delayTimer import DelayTimer
 
 from utils.event import Event, EventSeverity, EventType
@@ -93,6 +94,20 @@ class ReasonFlow:
 
         return current_reason
 
+    def update_auto_store_severity(self, severity: EventSeverity):
+        if self._auto_store_timer is None:
+            return
+        self._auto_store_timer.stop()
+        timer_seconds = self._auto_store_timer.timeout or 1
+        timer_args = self._auto_store_timer._args or []
+        timer_kwargs = self._auto_store_timer._kwargs or {}
+        timer_kwargs['event_severity'] = severity
+        self._auto_store_timer = DelayTimer(timeout=timer_seconds,
+                                            userHandler=self.to_event,
+                                            args=timer_args,
+                                            kwargs=timer_kwargs)
+        return
+
     def add_reason(self, comment: str) -> ReasonFlow:
         """
         Add a new reason to the ReasonFlow.
@@ -153,7 +168,7 @@ class ReasonFlow:
                 count += 1
             current_reason.next = None
 
-    def split(self, split_comment: Optional[str] = None) -> ReasonFlow:
+    def split(self, split_comment: Optional[str] = None, pause_auto_store: Optional[int] = None) -> ReasonFlow:
         """
         Create a deep copy of the ReasonFlow instance.
 
@@ -174,10 +189,15 @@ class ReasonFlow:
                                                 userHandler=self.to_event,  # type: ignore
                                                 args=timer_args,  # type: ignore
                                                 kwargs=timer_kwargs)  # type: ignore
+        # if restore_timer and not disable_auto_store:
             cp._auto_store_timer = DelayTimer(timeout=timer_seconds,  # type: ignore
                                               userHandler=cp.to_event,  # type: ignore
                                               args=timer_args,  # type: ignore
                                               kwargs=timer_kwargs)  # type: ignore
+            if pause_auto_store is not None:
+                cp._auto_store_timer.stop()
+                DelayTimer(timeout=pause_auto_store,
+                           userHandler=cp._auto_store_timer.restart)
         if split_comment is not None:
             cp.add_reason(split_comment)
         return cp
@@ -199,21 +219,18 @@ class ReasonFlow:
         details: List[str] = []
         current_reason = self.head
         while current_reason:
-            if current_reason.next is not None:
-                details.append('  ↓ ' + current_reason.comment)
-            else:
-                details.append('  ⤷ ' + current_reason.comment)
+            details.append(current_reason.comment)
             current_reason = current_reason.next
         if self._event is None:
             self._event = Event(comment=comment,
                                 initiator=initiator,
-                                details='\n'.join(details),
+                                details=details,
                                 event_severity=event_severity,
                                 event_type=EventType.REASONFLOW)
         else:
             self._event.comment = comment
             self._event.initiator = initiator
-            self._event.details = '\n'.join(details)
+            self._event.details = details
             self._event.event_severity = event_severity
         if immediate_store:
             self._event.store()

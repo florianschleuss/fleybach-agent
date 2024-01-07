@@ -10,6 +10,7 @@ from flask_restful import Api
 import requests as r
 
 from utils.auth import JWTValidator
+from utils.event import Event, EventSeverity, EventType
 from utils.logging import format_seconds_to_mm_ss, get_module_logger
 from utils.mail import AlertEmail, EmailSender
 from utils.sensor import SensorConfig
@@ -97,7 +98,10 @@ def get_temperature(id: str) -> Optional[float]:
                 body=f"{sensor.name.capitalize()} with {id} was disconnected for over 30 min"
             ).send(es, to_print=True)
     except Exception as e:
-        logger.error(str(e))
+        Event(str(e),
+              initiator='Power Component',
+              event_severity=EventSeverity.IMPORTANT,
+              event_type=EventType.ERROR).store()
     return
 
 
@@ -107,12 +111,15 @@ def check_routines():
             if not routine.due():
                 continue
             make_history(routine.sensor_names)
-            logger.info(
-                f"{routine.name.capitalize()}: {format_seconds_to_mm_ss(time.time()-routine.last_run-10)} since last run")
+            Event(
+                f"{routine.name.capitalize()}: {format_seconds_to_mm_ss(time.time()-routine.last_run-10)} since last run",
+                initiator='Power Component',
+                event_severity=EventSeverity.DEBUG).store()
             # -10 seconds are to account for eventual stack of miliseconds up to a full skip of one round
             routine.last_run = time.time()
         elif routine.type == 'datetime':
-            pass  # TODO Datetime routines rely on a specific date time combination to be triggered like cronjobs
+            # TODO Datetime routines rely on a specific date time combination to be triggered like cronjobs
+            pass
     return
 
 

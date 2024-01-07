@@ -3,9 +3,17 @@ from datetime import datetime
 import os
 from typing import List, Optional
 
+import requests
+from utils.auth import JWTValidator
+
 from utils.logging import get_module_logger
 
 logger = get_module_logger(linebreak=True)
+
+CUSTOMER_DOMAIN = os.environ.get('CUSTOMER_DOMAIN', "default")
+CUSTOMER_SECRET = os.environ.get('CUSTOMER_SECRET', "")
+AUTH_URL = os.environ.get('AUTH_URL', "")
+jwt: JWTValidator = JWTValidator(AUTH_URL, CUSTOMER_DOMAIN, CUSTOMER_SECRET)
 
 
 class EventSeverity(Enum):
@@ -34,7 +42,7 @@ class Event:
                  initiator: str,
                  event_severity: EventSeverity,
                  event_type: EventType = EventType.DEFAULT,
-                 details: Optional[str] = None):
+                 details: Optional[List[str]] = None):
         """
         Initialize an Event object.
 
@@ -45,7 +53,7 @@ class Event:
         self.timestamp: datetime = datetime.now()
         self.initiator: str = initiator
         self.comment: str = comment
-        self.details: Optional[str] = details
+        self.details: Optional[List[str]] = details
         self.event_severity: EventSeverity = event_severity
         self.event_type: EventType = event_type
         self._stored: bool = False
@@ -53,10 +61,10 @@ class Event:
 
     @property
     def tags(self):
-        tags = [str(self.event_severity.value.capitalize())]
+        tags = [str(self.event_severity.value.lower())]
         if self.event_type != EventType.DEFAULT:
-            tags.append(str(self.event_type.value.capitalize()))
-        tags.append(self.initiator)
+            tags.append(str(self.event_type.value.lower()))
+        tags.append(self.initiator.lower())
         return self._tags + tags
 
     def add_tag(self, tag: str):
@@ -90,8 +98,18 @@ class Event:
         formatted_str += f" {self.comment}"
 
         if details and self.details is not None:
-            return f'{formatted_str}\n{self.details}\n~ {self.initiator}'
-        return formatted_str
+            details_strings: List[str] = []
+            if self.event_type is EventType.REASONFLOW:
+                for i, d in enumerate(self.details):
+                    if i == len(self.details)-1:
+                        details_strings.append('  ⤷ ' + d)
+                    else:
+                        details_strings.append('  ↓ ' + d)
+            else:
+                details_strings = self.details
+            details_string = '\n'.join(details_strings)
+            return f"{formatted_str}\n{details_string}\n~ {self.initiator}"
+        return f"{formatted_str} ~ {self.initiator}"
 
     def store(self) -> None:
         """
@@ -114,6 +132,32 @@ class Event:
                 logger.warning(self.to_string(details=True))
             elif self.event_severity == EventSeverity.CRITICAL:
                 logger.critical(self.to_string(details=True))
-        # TODO store to db or print for debug
+            if self.event_severity in [EventSeverity.INFO, EventSeverity.NEUTRAL, EventSeverity.IMPORTANT, EventSeverity.CRITICAL]:
+                self._post_event()
         self._stored = True
         return
+
+    def _post_event(self) -> bool:
+        """
+        POST the event to the backend.
+
+        :return: Success of POST
+        """
+        jwt.v()
+        data = {
+            'comment': self.comment,
+            'initiator': self.initiator,
+            'timestamp': self.timestamp.timestamp(),
+            'severity': self.event_severity.value.capitalize(),
+            'type': self.event_type.value.capitalize(),
+            'tags': self.tags
+        }
+        if self.details is not None:
+            data['details'] = self.details
+        try:
+            post = requests.post(f'http://{CUSTOMER_DOMAIN}/event/events?customer_id={jwt.token.customer_id}',
+                                 json=data, headers={'x-access-token': jwt.token._token})
+            return post.status_code == 200
+        except requests.exceptions.ConnectionError:
+            pass
+        return False

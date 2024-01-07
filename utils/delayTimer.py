@@ -39,3 +39,8 @@ class DelayTimer:
         self.timer = Timer(self.timeout, self.handler,
                            self._args, self._kwargs)
         self.timer.start()
+
+    def restart(self) -> None:
+        self.timer = Timer(self.timeout, self.handler,
+                           self._args, self._kwargs)
+        self.timer.start()

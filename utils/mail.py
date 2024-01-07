@@ -8,6 +8,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
 import os
+from utils.event import Event, EventSeverity, EventType
 
 from utils.logging import get_module_logger
 
@@ -15,7 +16,7 @@ logger = get_module_logger()
 
 load_dotenv()
 
-EmailSender = TypeVar('EmailSender')
+EmailSender = TypeVar('EmailSender')  # type: ignore
 
 
 class Email:
@@ -40,7 +41,9 @@ class Email:
     def send(self, email_sender: EmailSender, to_print: bool = False):
         email_sender.send_email(self)
         if to_print:
-            logger.info(f"Email send: {self} at {datetime.now()} UTC")
+            Event(f"Email send: {self}",
+                  initiator="Mail Util",
+                  event_severity=EventSeverity.DEBUG).store()
 
 
 class AlertEmail(Email):
@@ -154,4 +157,7 @@ class EmailSender:
                 self._email_cache[email_hash] = time.time()
 
         except Exception as e:
-            logger.error(f"Error sending email: {str(e)}")
+            Event(f"Error sending email: {str(e)}",
+                  initiator="Mail Util",
+                  event_severity=EventSeverity.IMPORTANT,
+                  event_type=EventType.ERROR).store()

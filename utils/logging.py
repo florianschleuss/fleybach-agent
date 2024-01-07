@@ -2,7 +2,7 @@ import logging
 
 
 LOGGING_LEVEL = logging.DEBUG
-FLASK_LOGGING_LEVEL = logging.WARNING
+FLASK_LOGGING_LEVEL = logging.DEBUG
 
 
 werkzeug_logger = logging.getLogger('werkzeug')

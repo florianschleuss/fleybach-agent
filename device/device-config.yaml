@@ -1,5 +1,7 @@
 local_devices:
   - name: pump
+    displayed_name: 'Pumpe'
+    displayed_description: ''
     gpio: 13
     power: 800
     hysteresis_seconds: 300
@@ -23,19 +25,27 @@ local_devices:
         duration_seconds: 90
         sensor_name: air
   - name: heat_pump
+    displayed_name: 'Wärmepumpe'
+    displayed_description: ''
     gpio: 6
     power: 20000
     dependencies:
       - pump
   - name: twizy
+    displayed_name: 'Twizy Tankstelle'
+    displayed_description: ''
     power: 1500
     gpio: 1
   - name: charging_point
+    displayed_name: 'Ladestation'
+    displayed_description: ''
     power: 150
     gpio: 19
 
 remote_devices:
   - name: mobile_charging_station
+    displayed_name: 'Mobile Ladestation'
+    displayed_description: ''
     host: iot-sonoff-2
     device_type: sonoff
     power: 100

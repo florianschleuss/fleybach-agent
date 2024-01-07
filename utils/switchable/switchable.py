@@ -277,14 +277,17 @@ class Switchable:
             self._restart_timer.stop()
             self._restart_timer = None
         if self._shutdown_time_seconds != 0 or timer_seconds is not None:
+            dtrf = None
             if reason_flow is not None:
                 reason_flow.add_reason(
-                    f"Automatic shutdown at {(datetime.now() + timedelta(seconds=self._shutdown_time_seconds if timer_seconds is None else timer_seconds)).strftime('%d.%m.%Y %H:%M:%S')}")
+                    f"Automatic shutdown at {(datetime.now() + timedelta(seconds=self._shutdown_time_seconds if timer_seconds is None else timer_seconds)).strftime('%d.%m.%Y %H:%M:%S')} UTC")
+                dtrf = reason_flow.split(
+                    pause_auto_store=self._shutdown_time_seconds if timer_seconds is None else timer_seconds)
             self._shutdown_timer = DelayTimer(timeout=self._shutdown_time_seconds if timer_seconds is None else timer_seconds,
                                               userHandler=self.set_state,
                                               kwargs={'new_state': False,
                                                       'user': user,
-                                                      'reason_flow': reason_flow})
+                                                      'reason_flow': dtrf})
         return True
 
     def _switch_off(self,
@@ -321,14 +324,16 @@ class Switchable:
             self._shutdown_timer.stop()
             self._shutdown_timer = None
         if timer_seconds is not None:
+            dtrf = None
             if reason_flow is not None:
                 reason_flow.add_reason(
-                    f"Automatic restart at {(datetime.now() + timedelta(seconds=timer_seconds)).strftime('%d.%m.%Y %H:%M:%S')}")
+                    f"Automatic restart at {(datetime.now() + timedelta(seconds=timer_seconds)).strftime('%d.%m.%Y %H:%M:%S')} UTC")
+                dtrf = reason_flow.split(pause_auto_store=timer_seconds)
             self._restart_timer = DelayTimer(timeout=timer_seconds,
                                              userHandler=self.set_state,
                                              kwargs={'new_state': True,
                                                      'user': user,
-                                                     'reason_flow': reason_flow})
+                                                     'reason_flow': dtrf})
         # if reason_flow is not None:
         #     reason_flow.to_event(event_severity=EventCategory.NEUTRAL)
         return self._state
@@ -346,6 +351,7 @@ class Switchable:
 
         :return: Value that is set after validation
         '''
+
         success: bool
         if new_state:
             success = self._switch_on(user=user, timer_seconds=timer_seconds,
@@ -416,7 +422,7 @@ class Switchable:
         Event(
             comment=f"Reset routine run for {self.name}",
             event_severity=EventSeverity.INFO,
-            initiator=self.name.replace('_', ' ').title()
+            initiator=self.name.replace('_', '-').title()
         ).store()
         return
 
@@ -466,7 +472,8 @@ class Switchable:
                         f"Max active time blocked attempt.")
                     reason_flow.to_event(EventSeverity.DEBUG)
                 return
-
+            if reason_flow is not None:
+                reason_flow.update_auto_store_severity(EventSeverity.NEUTRAL)
             if len(self._dependencies) != 0:
                 if reason_flow is not None:
                     reason_flow.add_reason(
@@ -489,6 +496,8 @@ class Switchable:
                         f"Hysteresis blocked attempt.")
                     reason_flow.to_event(EventSeverity.DEBUG)
                 return
+            if reason_flow is not None:
+                reason_flow.update_auto_store_severity(EventSeverity.NEUTRAL)
             if len(self._dependencies) != 0:
                 if reason_flow is not None:
                     reason_flow.add_reason(
@@ -523,7 +532,7 @@ class Switchable:
             else:
                 Event(comment=f"{self.name.capitalize()} switched to '{new_state}'",
                       event_severity=EventSeverity.NEUTRAL,
-                      initiator=self.name.replace('_', ' ').title()).store()
+                      initiator=self.name.replace('_', '-').title()).store()
             self._state = new_state
 
         return

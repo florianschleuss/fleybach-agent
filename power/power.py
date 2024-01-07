@@ -60,8 +60,12 @@ def update_sensor(id: str, name: str, value: Union[int, float], unit: str, type:
                 'type': type
             }, headers={'x-access-token': jwt.token._token})
         sensor.present_in_database = True
-    except r.exceptions.ConnectionError:
-        pass
+    except r.exceptions.ConnectionError as e:
+        Event("Error while update_sensor()",
+              details=[str(e)],
+              initiator='Power Component',
+              event_severity=EventSeverity.IMPORTANT,
+              event_type=EventType.ERROR).store()
     return False  # TODO Validation of success
 
 
@@ -73,10 +77,18 @@ def batch_update_sensor(sensors_list: List[Sensor]):
         post = r.patch(f'http://{CUSTOMER_DOMAIN}/sensor/sensors?customer_id={jwt.token.customer_id}', json={
             'sensors': sensors_list
         }, headers={'x-access-token': jwt.token._token})
-    except r.exceptions.ConnectionError:
+    except r.exceptions.ConnectionError as e:
         for update_sensor in sensors_list:
-            sensor = config.get_sensor(update_sensor.device_id)
-            sensor.present_in_database = False
+            try:
+                sensor = config.get_sensor(update_sensor['id'])
+                sensor.present_in_database = False
+            except StopIteration:
+                pass
+        Event("Error while batch_update_sensor()",
+              details=[str(e)],
+              initiator='Power Component',
+              event_severity=EventSeverity.IMPORTANT,
+              event_type=EventType.ERROR).store()
     return False  # TODO Validation of success
 
 
@@ -86,12 +98,24 @@ def make_history(names: List):
         post = r.post(f'http://{CUSTOMER_DOMAIN}/sensor/sensors/names/history?customer_id={jwt.token.customer_id}', json={
             'names': names
         }, headers={'x-access-token': jwt.token._token})
-    except r.exceptions.ConnectionError:
-        pass
+    except r.exceptions.ConnectionError as e:
+        Event("Error while make_history()",
+              details=[str(e)],
+              initiator='Power Component',
+              event_severity=EventSeverity.IMPORTANT,
+              event_type=EventType.ERROR).store()
     return False  # TODO Validation of success
 
 
-def get_inverter_data(name: str):
+def get_inverter_data(name: str) -> Optional[Dict]:
+    """
+    Gets the translation info for name -> register_id out of the register_config stored at sma/smaRegisters.json.
+    Tries to read register from inverter.
+
+    :param name: Name of the needed register.
+
+    :return: None if failure. 0 or value if no error but succesful query.
+    """
     try:
         config_register: ModbusRegister = next(
             r for r in register_config if r.name == name)
@@ -106,17 +130,28 @@ def get_inverter_data(name: str):
             unit=3
         )
     except:
-        logger.critical("Cannot connect to inverter")
+        Event("Cannot connect to inverter",
+              initiator='Power Component',
+              event_severity=EventSeverity.CRITICAL,
+              event_type=EventType.ERROR).store()
         return
     if not hasattr(response, 'registers'):
-        logger.warning("Malformed response from inverter")
+        Event("Malformed response from inverter",
+              initiator='Power Component',
+              event_severity=EventSeverity.IMPORTANT,
+              event_type=EventType.ERROR).store()
         return
     register.set_registers(response.registers)
     if register.is_null() or register.get_value() == -2147483648:
-        # logger.debug(f"FAI: {register.name} {register.get_value()}")
+        # Event("Failed Register",
+        #       details=[
+        #           f"Name: {register.name}",
+        #           f"Value: {register.get_value()}",
+        #       ],
+        #       initiator='Power Component',
+        #       event_severity=EventSeverity.DEBUG).store()
         return {'value': 0, 'unit': config_register.unit, 'type': config_register.type}
     value = config_register.transform_value(register.get_value())
-    # logger.debug(f"SUC: {register.name} {value} {config_register.unit}")
 
     return {'value': value, 'unit': config_register.unit, 'type': config_register.type}
 
@@ -127,8 +162,10 @@ def check_routines():
             if not routine.due():
                 continue
             make_history(routine.sensor_names)
-            logger.info(
-                f"{routine.name.capitalize()}: {format_seconds_to_mm_ss(time.time()-routine.last_run-10)} since last run")
+            Event(
+                f"{routine.name.capitalize()}: {format_seconds_to_mm_ss(time.time()-routine.last_run-10)} since last run",
+                initiator='Power Component',
+                event_severity=EventSeverity.DEBUG).store()
             # -10 seconds are to account for eventual stack of miliseconds up to a full skip of one round
             routine.last_run = time.time()
     return

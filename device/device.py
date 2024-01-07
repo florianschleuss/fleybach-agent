@@ -8,7 +8,7 @@ import socketio
 
 from utils.auth import JWTValidator
 from utils.delayTimer import DelayTimer
-from utils.event import Event, EventSeverity
+from utils.event import Event, EventSeverity, EventType
 from utils.logging import format_seconds_to_mm_ss, get_module_logger
 from utils.mail import AlertEmail, EmailSender
 from utils.reason import ReasonFlow
@@ -20,7 +20,7 @@ from utils.transportModels import ReturnObject
 logger = get_module_logger()
 sio: socketio.Client = socketio.Client()
 
-DEADLINE_CHECK_TIME = datetime.time(19, 00, 00)
+DEADLINE_CHECK_TIME = datetime.time(19, 00, 00)  # UTC
 REFRESH_TIME_SECONDS = 10
 CUSTOMER_DOMAIN = os.environ.get('CUSTOMER_DOMAIN', "default")
 CUSTOMER_SECRET = os.environ.get('CUSTOMER_SECRET', "")
@@ -103,18 +103,17 @@ class DeviceController:
         """
 
         # Creat info-event for runtime summary of day
-        devices_runtime_info = []
         for d in self._devices.values():
             if d.rest_active_time_seconds > 0:
-                devices_runtime_info.append(
-                    f"  {d.name} needs {format_seconds_to_mm_ss(d.rest_active_time_seconds)} to fullfil min. active time")
+                if reason_flow is not None:
+                    reason_flow.add_reason(
+                        f"{d.name.replace('_', '-').title()} needs {format_seconds_to_mm_ss(d.rest_active_time_seconds)} to fullfil min. active time")
             else:
-                devices_runtime_info.append(
-                    f"  {d.name} ran for {format_seconds_to_mm_ss(d.active_time_seconds)} today. Min. active time fullfiled")
-        Event(comment='Deadline check runs',
-              initiator='Device Component',
-              details='\n'.join(devices_runtime_info),
-              event_severity=EventSeverity.INFO).store()
+                if reason_flow is not None:
+                    reason_flow.add_reason(
+                        f"{d.name.replace('_', '-').title()} ran for {format_seconds_to_mm_ss(d.active_time_seconds)} today. Min. active time fullfiled")
+        if reason_flow is not None:
+            reason_flow.to_event(event_severity=EventSeverity.INFO)
 
         # Min. active time checking
         for d in self._devices.values():
@@ -155,6 +154,12 @@ class DeviceController:
             raise Exception("Device not in DeviceController")
         return self._devices[name]
 
+    def get_devices(self) -> List[PowerSwitchable]:
+        """
+        :return: Returns all devices
+        """
+        return list(self._devices.values())
+
     def safety_sensor_list(self) -> List[str]:
         sensors = []
         for d in self._devices.values():
@@ -177,8 +182,8 @@ class DeviceController:
         device: PowerSwitchable = self._devices[device_name]
 
         reason_flow: ReasonFlow = ReasonFlow(
-            name=f"Manual switch at {datetime.datetime.now()}",
-            initiator=device.name.replace('_', ' ').title(),
+            name=f"Manual switch at {datetime.datetime.now()} UTC",
+            initiator=device.name.replace('_', '-').title(),
             initial_comment=f"{device.name.capitalize()} switched by '{user}'")
         to_value: bool = new_state if new_state is not None else not device.state
         set_value: bool = device.set_state(new_state=to_value,
@@ -261,9 +266,10 @@ class DeviceController:
 
         # ReasonFlow to store all decisions made througout the process
         reason_flow: ReasonFlow = ReasonFlow(
-            name=f"Tick at {datetime.datetime.now()}",
+            name=f"Power Tick",
             initiator='Device Component',
-            initial_comment=f"Tick with {available_power} available power")
+            initial_comment=f"Tick with {available_power} available power",
+            auto_store_event_severity=EventSeverity.DEBUG)
 
         # Not enough power present
         if available_power <= 0:
@@ -376,12 +382,15 @@ def _check_power_component(rf: ReasonFlow) -> bool:
 
 def startup_check() -> None:
     rf: ReasonFlow = ReasonFlow(
-        name="Startup checks", auto_store_seconds=20, initiator='Device Component')
+        name="Startup checks", auto_store_seconds=None, initiator='Device Component')
     tc = _check_temperature_component(rf)
     pc = _check_power_component(rf)
     if not pc or not tc:
-        DelayTimer(3600, startup_check)
-    rf.to_event(EventSeverity.INFO)
+        DelayTimer(300, startup_check)
+    if startup_check_values.get('tc', not local_temperature_component) != local_temperature_component or startup_check_values.get('pc', not local_power_component) != local_power_component:
+        rf.to_event(EventSeverity.INFO)
+    startup_check_values['tc'] = tc
+    startup_check_values['pc'] = pc
     return
 
 
@@ -390,20 +399,32 @@ def get_power_consumption() -> float:
     Get the current power consumption.
     If local component is present gets the data from there.
     Fallback is to collect the data from the DB in the backend.
+
+    :raises: TimeoutError
     """
     global local_power_component
     if local_power_component:
-        get = requests.get(url="http://power/power")
+        get = requests.get(url="http://power/power", timeout=10)
+
         if get.status_code == 200:
             sensors: Dict[str, float] = get.json()['sensors']
+            if 'total' not in sensors:
+                raise ConnectionError(
+                    "Not all sensor data was delivered locally")
             return float(sensors['total'])
         else:
             local_power_component = False
+            raise ConnectionError(
+                f"Local request status_code was {get.status_code}")
 
     jwt.v()
-    get = requests.get(
-        f"https://api.florianschleuss.de/sensor/sensors/names?customer_id={jwt.token.customer_id}&names[]=total",
-        headers={'x-access-token': jwt.token._token})
+    try:
+        get = requests.get(
+            f"https://api.florianschleuss.de/sensor/sensors/names?customer_id={jwt.token.customer_id}&names[]=total",
+            headers={'x-access-token': jwt.token._token})
+    except requests.exceptions.ConnectionError:
+        raise ConnectionError(
+            "Connection time out")
     if get.json() is None:
         raise ConnectionError("No data was returned")
     data: Dict = get.json()['data'][0]
@@ -422,12 +443,16 @@ def get_temperatures() -> Dict[str, float]:
         return {}
 
     jwt.v()
-    get = requests.get(
-        f"https://api.florianschleuss.de/sensor/sensors/type/temperature?customer_id={jwt.token.customer_id}",
-        headers={'x-access-token': jwt.token._token})
+    try:
+        get = requests.get(
+            f"https://api.florianschleuss.de/sensor/sensors/type/temperature?customer_id={jwt.token.customer_id}",
+            headers={'x-access-token': jwt.token._token})
+    except requests.exceptions.ConnectionError:
+        raise ConnectionError(
+            "Connection time out")
     if get.status_code != 200:
         raise ConnectionError(
-            "API request decliend (status_code:{get.status_code})")
+            f"API request decliend (status_code:{get.status_code})")
     if get.json() is None:
         raise ConnectionError("No data was returned")
     data: List[Dict] = get.json()['data']
@@ -436,7 +461,7 @@ def get_temperatures() -> Dict[str, float]:
         if item['lastModified'] + 30 < time.time():
             Event("Temperature value received from backend is not up to date",
                   event_severity=EventSeverity.IMPORTANT,
-                  details=f"Sensor name: '{item['name']}'",
+                  details=[f"Sensor name: '{item['name']}'"],
                   initiator='Device Component')
             continue
         temps[item['name']] = float(item['value'])
@@ -450,12 +475,14 @@ def connect():
     Registers endpoint as soon as the WS is connected
     """
     sio.emit('customer_domain', CUSTOMER_DOMAIN)
-    logger.info(f"Connected as '{CUSTOMER_DOMAIN}'!")
+    Event(f"Connected as '{CUSTOMER_DOMAIN}'!", initiator='Device Component',
+          event_severity=EventSeverity.DEBUG).store()
 
 
 @sio.event
 def disconnect():
-    logger.info("Disconnected!")
+    Event(f"'{CUSTOMER_DOMAIN.capitalize()}' Disconnected!",
+          initiator='Device Component', event_severity=EventSeverity.DEBUG).store()
 
 
 @sio.on('task')  # type: ignore
@@ -511,9 +538,13 @@ if __name__ == "__main__":
     while not sio.connected and retries <= 10:
         try:
             sio.connect('https://api.florianschleuss.de', transports=['websocket'],
-                        socketio_path="device/socket.io", wait=False)
+                        socketio_path="socket/socket.io", wait=False)
         except socketio.client.exceptions.ConnectionError as e:
-            logger.critical(f"SIO connect error: {str(e)}")
+            Event(f"SIO connect error",
+                  details=[str(e)],
+                  initiator='Device Component',
+                  event_severity=EventSeverity.CRITICAL,
+                  event_type=EventType.ERROR).store()
         time.sleep(10)
         retries += 1
     while True:
@@ -525,13 +556,25 @@ if __name__ == "__main__":
             power = get_power_consumption()
             dc.tick(power)
         except ConnectionError as e:
-            logger.error(f"Error while get_power_consumption(): {str(e)}")
+            Event(f"Error while get_power_consumption()",
+                  details=[str(e)],
+                  initiator='Device Component',
+                  event_severity=EventSeverity.IMPORTANT,
+                  event_type=EventType.ERROR).store()
+        except TimeoutError:
+            Event(f"Timeout while get_power_consumption()",
+                  initiator='Device Component',
+                  event_severity=EventSeverity.IMPORTANT).store()
 
         try:
             temperatures = get_temperatures()
             dc.temperature_tick(temperatures)
         except ConnectionError as e:
-            logger.error(f"Error while get_power_consumption(): {str(e)}")
+            Event(f"Error while get_temperatures()",
+                  details=[str(e)],
+                  initiator='Device Component',
+                  event_severity=EventSeverity.IMPORTANT,
+                  event_type=EventType.ERROR).store()
 
         if (delta := (datetime.datetime.now().timestamp() - start)) < REFRESH_TIME_SECONDS:
             time.sleep(REFRESH_TIME_SECONDS - delta)
