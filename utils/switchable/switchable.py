@@ -163,6 +163,8 @@ class TemperatureSafety:
 class Switchable:
     def __init__(self,
                  name: str,
+                 displayed_name: str = '',
+                 displayed_description: str = '',
                  dependencies: List[Switchable] = [],
                  shutdown_time_seconds: int = 0,
                  max_active_time_seconds: int = 86400,  # One day
@@ -172,8 +174,12 @@ class Switchable:
                  importance: int = 0,
                  temperature_safety: Optional[TemperatureSafety] = None
                  ) -> None:
-        # Displayed name of SW
+        # Internal name of SW
         self.name: str = name
+
+        # Displayed data
+        self.displayed_name: str = displayed_name
+        self.displayed_description: str = displayed_description
 
         # SW state
         self._state: bool = False
@@ -381,8 +387,11 @@ class Switchable:
                        'min_active_time_seconds': self._min_active_time_seconds,
                        'hysteresis_seconds': self._hysteresis_seconds,
                        're_hysteresis_seconds': self._re_hysteresis_seconds,
+                       'shutdown_time_seconds': self._shutdown_time_seconds,
                        'importance': self._importance,
-                       'active_time_seconds': self.active_time_seconds}
+                       'active_time_seconds': self.active_time_seconds,
+                       'displayed_description': self.displayed_description,
+                       'displayed_name': self.displayed_name}
         device_dict['shutdown_timer'] = self._shutdown_timer.rest_time(
         ) if self._shutdown_timer is not None else None
         device_dict['restart_timer'] = self._restart_timer.rest_time(

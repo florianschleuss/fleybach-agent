@@ -81,6 +81,10 @@ class LocalDevice(PowerSwitchable):
                                       gpio=object['gpio'])
         else:
             device: LocalDevice = updating_device
+        if 'displayed_name' in object:
+            device.displayed_name = object['displayed_name']
+        if 'displayed_description' in object:
+            device.displayed_description = object['displayed_description']
         if 'power_off_tolerance' in object:
             device._power_off_tolerance = object['power_off_tolerance']
         if 'shutdown_time_seconds' in object:
@@ -177,6 +181,10 @@ class RemoteDevice(PowerSwitchable):
             power=object['power'],
             host=object['host'],
             device_type=RemoteDeviceType.from_str(object['device_type']))
+        if 'displayed_name' in object:
+            device.displayed_name = object['displayed_name']
+        if 'displayed_description' in object:
+            device.displayed_description = object['displayed_description']
         if 'power_off_tolerance' in object:
             device._power_off_tolerance = object['power_off_tolerance']
         if 'shutdown_time_seconds' in object:

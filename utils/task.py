@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Dict, List, Optional, TypeVar
 
-Task = TypeVar('Task')
+Task = TypeVar('Task')  # type: ignore
 
 
 class Action(Enum):
@@ -10,6 +10,7 @@ class Action(Enum):
     OFF = 'off'
     TIMER = 'timer'
     STATE = 'state'
+    STATEALL = 'stateAll'
 
     @staticmethod
     def from_str(action: str):
@@ -21,6 +22,8 @@ class Action(Enum):
             return Action.OFF
         elif action in ('timer'):
             return Action.TIMER
+        elif action == 'stateAll':
+            return Action.STATEALL
         elif action in ('state'):
             return Action.STATE
         else:
@@ -29,11 +32,9 @@ class Action(Enum):
 
 class Task():
     def __init__(self,
-                 device_name: str,
                  action: Action,
                  action_args: Dict = {}) -> None:
 
-        self.device_name: str = device_name
         self.action: Action = action
         self.action_args: Dict = action_args
 
@@ -42,12 +43,9 @@ class Task():
             cls,
             object: Dict
     ) -> Task:
-        if 'deviceName' not in object:
-            raise Exception("No deviceName given")
         if 'action' not in object:
             raise Exception("No action given")
-        task: Task = cls(device_name=object['deviceName'],
-                         action=Action.from_str(object['action']))
+        task: Task = cls(action=Action.from_str(object['action']))
         task.action_args = object.get('args', {})
         return task
 
@@ -55,9 +53,11 @@ class Task():
         if self.action_args == {}:
             return self.action in []
         if self.action in [Action.SWITCH, Action.OFF, Action.ON]:
-            return all(k in self.action_args for k in ['user'])
+            return all(k in self.action_args for k in ['user', 'deviceName'])
         elif self.action == Action.STATE:
+            return all(k in self.action_args for k in ['details', 'deviceName'])
+        elif self.action == Action.STATEALL:
             return all(k in self.action_args for k in ['details'])
         elif self.action == Action.TIMER:
-            return all(k in self.action_args for k in ['user', 'delaySeconds', 'state'])
+            return all(k in self.action_args for k in ['user', 'delaySeconds', 'state', 'deviceName'])
         return False

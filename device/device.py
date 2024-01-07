@@ -466,41 +466,41 @@ def handle_task_event(data: dict):
     :param data: Data with device_name, action and needed params to execute action
     """
     task: Task = Task.from_object(data)
-    if not dc.has_device(task.device_name):
-        logger.warning("Device not in DeviceController")
-        return ReturnObject(status_code=422, error_code='deviceNotFound', message="The device is not listed").to_dict()
     if not task.verify_action_params():
-        logger.warning("Not all needed params present")
         return ReturnObject(status_code=422, error_code='paramsNotFound', message="Not all needed parameters are present").to_dict()
 
     if task.action is Action.SWITCH:
         if dc.switch_device(
-                device_name=task.device_name,
+                device_name=task.action_args['deviceName'],
                 user=task.action_args['user']):
             return ReturnObject(status_code=200).to_dict()
     elif task.action is Action.ON:
         if dc.switch_device(
-                device_name=task.device_name,
+                device_name=task.action_args['deviceName'],
                 user=task.action_args['user'],
                 new_state=True):
             return ReturnObject(status_code=200).to_dict()
     elif task.action is Action.OFF:
         if dc.switch_device(
-                device_name=task.device_name,
+                device_name=task.action_args['deviceName'],
                 user=task.action_args['user'],
                 new_state=False):
             return ReturnObject(status_code=200).to_dict()
     elif task.action is Action.TIMER:
         if dc.switch_device(
-                device_name=task.device_name,
+                device_name=task.action_args['deviceName'],
                 user=task.action_args['user'],
                 new_state=task.action_args['state'],
                 timer_seconds=task.action_args['delaySeconds']):
             return ReturnObject(status_code=200).to_dict()
     elif task.action is Action.STATE:
-        device = dc.get_device_by_name(task.device_name)
+        device = dc.get_device_by_name(task.action_args['deviceName'])
         details = task.action_args.get('details', False)
         return ReturnObject(status_code=200, data=device.to_dict(full=details)).to_dict()
+    elif task.action is Action.STATEALL:
+        devices = dc.get_devices()
+        details = task.action_args.get('details', False)
+        return ReturnObject(status_code=200, data=[device.to_dict(full=details) for device in devices]).to_dict()
 
     return ReturnObject(status_code=422, error_code='failedAction', message="The action was not successful. Refer to logs").to_dict()
 
