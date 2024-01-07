@@ -3,7 +3,7 @@ import json
 import os
 import threading
 import time
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 from flask import Flask
 from flask_restful import Api
@@ -69,7 +69,7 @@ def update_sensor(id: str, name: str, value: Union[int, float], unit: str, type:
     return False  # TODO Validation of success
 
 
-def batch_update_sensor(sensors_list: List[Sensor]):
+def batch_update_sensor(sensors_list: List[Dict]):
     if len(sensors_list) == 0:
         return
     jwt.v()
@@ -218,7 +218,7 @@ def activate() -> Tuple[Dict, int]:
         if get_inverter_data(sensor.device_id) is None:
             continue
         sensors.append(sensor.name)
-    if sml_parser.get_energy_data() is not None:
+    if sml_parser.energy_data is not None:
         sensors += ['bought', 'sold', 'total', 'l1', 'l2', 'l3',]
     return {'sensors': sensors}, 200
 
