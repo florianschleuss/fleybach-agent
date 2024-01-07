@@ -30,7 +30,7 @@ def from_dict_to_json(input_dict):
     if isinstance(input_dict, dict):
         camel_case_dict = {}
         for key, value in input_dict.items():
-            camel_case_key = _snake_case_to_camel_case(key)
+            camel_case_key = snake_case_to_camel_case(key)
             camel_case_value = from_dict_to_json(value)
             camel_case_dict[camel_case_key] = camel_case_value
         return camel_case_dict
@@ -40,7 +40,7 @@ def from_dict_to_json(input_dict):
         return input_dict
 
 
-def _snake_case_to_camel_case(snake_case_str):
+def snake_case_to_camel_case(snake_case_str):
     """
     Convert a snake_case string to camelCase.
 
@@ -50,3 +50,14 @@ def _snake_case_to_camel_case(snake_case_str):
     """
     words = snake_case_str.split('_')
     return words[0] + ''.join(word.title() for word in words[1:])
+
+
+def camel_case_to_snake_case(camel_case_str: str):
+    """
+    Convert a camelCase string to snake_case.
+
+    :param camel_case_str: The input camelCase string.
+
+    :return: The string converted to snake_case.
+    """
+    return ''.join(['_'+c.lower() if c.isupper() else c for c in camel_case_str]).lstrip('_')

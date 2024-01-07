@@ -15,7 +15,7 @@ from utils.reason import ReasonFlow
 from utils.switchable.powerSwitchable import LocalDevice, PowerSwitchable, RemoteDevice, RemoteDeviceType
 from utils.switchable.switchable import TemperatureSafety
 from utils.task import Action, Task
-from utils.transportModels import ReturnObject
+from utils.transportModels import ReturnObject, camel_case_to_snake_case
 
 logger = get_module_logger()
 sio: socketio.Client = socketio.Client()
@@ -597,6 +597,7 @@ def handle_task_event(data: dict):
         for u in updates:
             if (not 'key' in u) or (not 'value' in u):
                 continue
+            u['key'] = camel_case_to_snake_case(u['key'])
             if not hasattr(device, u['key']):
                 continue
             if u['key'] not in allowed_updates:
