@@ -13,6 +13,10 @@
             "type": "history",
             "intervalSeconds": 3600,
             "sensorNames": [
+                "acWOut",
+                "bought",
+                "sold",
+                "total"
             ]
         }
     ],

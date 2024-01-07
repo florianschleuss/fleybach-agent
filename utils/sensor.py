@@ -70,6 +70,9 @@ class Routine:
         self.sensor_names: List[str] = sensor_names
         self.interval_seconds: float = interval_seconds
         self.last_run: float = time.time()
+        if self.interval_seconds == 86400:
+            # If once per day do first on startup with 20 sec delay
+            self.last_run = self.last_run - 86380
 
     @classmethod
     def from_object(
