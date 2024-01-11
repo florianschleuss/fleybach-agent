@@ -336,7 +336,7 @@ class DeviceController:
                 if device._power_off_tolerance > available_power:
                     if not device.set_state(False,
                                             user='Automation',
-                                            reason_flow=reason_flow.add_reason(f"Try to set state to '{False}' for '{device.name}' with user 'Automation'")):
+                                            reason_flow=reason_flow.split(f"Try to set state to '{False}' for '{device.name}' with user 'Automation'")):
                         current_power_consumption -= device.power_all
         # To much power present
         else:
@@ -346,15 +346,14 @@ class DeviceController:
             for device in devices:
                 if (
                     device.power_all < available_power
-                    and
-                    device.rest_active_time_seconds > 0
                 ):
-                    drf = reason_flow.add_reason(
+                    drf = reason_flow.split(
                         f"Try to set state to '{True}' for '{device.name}' requiring {device.power_all} power with user 'Automation'")
                     if device.set_state(True,
                                         user='Automation',
                                         reason_flow=drf):
                         available_power -= device.power_all
+        reason_flow.remove()
 
         # Deadline check
         if DEADLINE_CHECK_TIME is not None:
