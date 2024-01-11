@@ -4,17 +4,19 @@ local_devices:
   displayed_description: ''
   gpio: 13
   power: 800
-  hysteresis_seconds: 300
+  hysteresis_seconds: 60
   re_hysteresis_seconds: 60
   min_active_time_seconds: 1200
   shutdown_time_seconds: 7200
   temperature_safety:
   - value_degrees_c: 0
+    end_value_degrees_c: -1
     type: low
     interval_seconds: 3600
     sensor_name: air
     alert_enabled: false
   - value_degrees_c: -1
+    end_value_degrees_c: -3
     type: low
     interval_seconds: 1800
     sensor_name: air
@@ -58,11 +60,11 @@ local_devices:
   displayed_description: ''
   power: 150
   gpio: 19
-  hysteresis_seconds: 0
+  hysteresis_seconds: 30
   importance: 0
   max_active_time_seconds: 86400
   min_active_time_seconds: 0
-  re_hysteresis_seconds: 0
+  re_hysteresis_seconds: 30
   shutdown_time_seconds: 0
   power_off_tolerance: 0
 remote_devices:
@@ -74,8 +76,8 @@ remote_devices:
   power: 100
   max_active_time_seconds: 86400
   min_active_time_seconds: 0
-  hysteresis_seconds: 0
-  re_hysteresis_seconds: 0
+  hysteresis_seconds: 30
+  re_hysteresis_seconds: 30
   shutdown_time_seconds: 0
   importance: 0
   power_off_tolerance: 0
