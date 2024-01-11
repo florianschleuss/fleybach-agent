@@ -393,8 +393,8 @@ class Switchable:
 
         :return: The rest time the device needs to be active
         '''
-        rest_time: int = self.max_active_time_seconds - self.active_time_seconds
-        if self.min_active_time_seconds < self.active_time_seconds and rest_time < 0:
+        rest_time: int = self.min_active_time_seconds - self.active_time_seconds
+        if self.max_active_time_seconds < self.active_time_seconds and rest_time < 0:
             return 0
         return self.min_active_time_seconds - self.active_time_seconds
 
