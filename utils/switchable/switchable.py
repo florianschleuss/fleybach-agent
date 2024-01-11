@@ -14,6 +14,7 @@ Depender = TypeVar('Depender')  # type: ignore
 class DependencyType(Enum):
     AUTOMATIC = 'automatic'
     USER = 'user'
+    SYSTEM = 'system'
 
 
 class Depender:
@@ -23,6 +24,8 @@ class Depender:
         self.name: str = name
         if self.name == "Automation":
             self.dependency_type: DependencyType = DependencyType.AUTOMATIC
+        elif self.name in ["Deadline-Check", "Temperature-Safety"]:
+            self.dependency_type: DependencyType = DependencyType.SYSTEM
         else:
             self.dependency_type: DependencyType = DependencyType.USER
         self.user: Optional[str] = user
