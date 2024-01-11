@@ -290,12 +290,15 @@ class Switchable:
             self._restart_timer = None
         if self.shutdown_time_seconds != 0 or timer_seconds is not None:
             dtrf = None
+            time_delta = self.shutdown_time_seconds if timer_seconds is None else timer_seconds
             if reason_flow is not None:
                 reason_flow.add_reason(
-                    f"Automatic shutdown at {(datetime.now() + timedelta(seconds=self.shutdown_time_seconds if timer_seconds is None else timer_seconds)).strftime('%d.%m.%Y %H:%M:%S')} UTC")
+                    f"Automatic shutdown at {(datetime.now() + timedelta(seconds=time_delta)).strftime('%d.%m.%Y %H:%M:%S')} UTC")
                 dtrf = reason_flow.split(
-                    pause_auto_store=self.shutdown_time_seconds if timer_seconds is None else timer_seconds)
-            self._shutdown_timer = DelayTimer(timeout=self.shutdown_time_seconds if timer_seconds is None else timer_seconds,
+                    "Timer based shutdown initiated",
+                    pause_auto_store_seconds=time_delta,
+                    update_auto_store_severity=EventSeverity.DEBUG)
+            self._shutdown_timer = DelayTimer(timeout=time_delta,
                                               userHandler=self.set_state,
                                               kwargs={'new_state': False,
                                                       'user': user,
@@ -340,14 +343,15 @@ class Switchable:
             if reason_flow is not None:
                 reason_flow.add_reason(
                     f"Automatic restart at {(datetime.now() + timedelta(seconds=timer_seconds)).strftime('%d.%m.%Y %H:%M:%S')} UTC")
-                dtrf = reason_flow.split(pause_auto_store=timer_seconds)
+                dtrf = reason_flow.split(
+                    "Timer based restart initiated",
+                    pause_auto_store_seconds=timer_seconds,
+                    update_auto_store_severity=EventSeverity.DEBUG)
             self._restart_timer = DelayTimer(timeout=timer_seconds,
                                              userHandler=self.set_state,
                                              kwargs={'new_state': True,
                                                      'user': user,
                                                      'reason_flow': dtrf})
-        # if reason_flow is not None:
-        #     reason_flow.to_event(event_severity=EventCategory.NEUTRAL)
         return self._state
 
     def set_state(self,
@@ -475,14 +479,16 @@ class Switchable:
                 if reason_flow is not None:
                     reason_flow.add_reason(
                         f"Re-Hysteresis blocked attempt.")
-                    reason_flow.to_event(EventSeverity.DEBUG)
+                    if Depender(name=reason_flow.initiator).dependency_type == DependencyType.AUTOMATIC:
+                        reason_flow.to_event(EventSeverity.DEBUG)
                 return
 
             if self.max_active_time_pause():
                 if reason_flow is not None:
                     reason_flow.add_reason(
                         f"Max active time blocked attempt.")
-                    reason_flow.to_event(EventSeverity.DEBUG)
+                    if Depender(name=reason_flow.initiator).dependency_type == DependencyType.AUTOMATIC:
+                        reason_flow.to_event(EventSeverity.DEBUG)
                 return
             if reason_flow is not None:
                 reason_flow.update_auto_store_severity(EventSeverity.NEUTRAL)
@@ -506,7 +512,8 @@ class Switchable:
                 if reason_flow is not None:
                     reason_flow.add_reason(
                         f"Hysteresis blocked attempt.")
-                    reason_flow.to_event(EventSeverity.DEBUG)
+                    if Depender(name=reason_flow.initiator).dependency_type == DependencyType.AUTOMATIC:
+                        reason_flow.to_event(EventSeverity.DEBUG)
                 return
             if reason_flow is not None:
                 reason_flow.update_auto_store_severity(EventSeverity.NEUTRAL)

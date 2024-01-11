@@ -168,16 +168,18 @@ class ReasonFlow:
                 count += 1
             current_reason.next = None
 
-    def split(self, split_comment: Optional[str] = None, pause_auto_store: Optional[int] = None) -> ReasonFlow:
+    def split(self, split_comment: Optional[str] = None, pause_auto_store_seconds: Optional[int] = None, update_auto_store_severity: Optional[EventSeverity] = None) -> ReasonFlow:
         """
         Create a deep copy of the ReasonFlow instance.
 
         :param split_comment: Optional comment to be added to the ReasonFlow
                               after splitting.
+        :param pause_auto_store_seconds: Pause the auto store timer for given seconds
+        :param update_auto_store_severity: Updates the event_severity of the returned split
 
         :return: A deep copy of the ReasonFlow instance.
         """
-        if restore_timer := self._auto_store_timer is not None:
+        if restore_timer := (self._auto_store_timer is not None):
             self._auto_store_timer.stop()
             timer_seconds = self._auto_store_timer.timeout
             timer_args = self._auto_store_timer._args
@@ -189,14 +191,19 @@ class ReasonFlow:
                                                 userHandler=self.to_event,  # type: ignore
                                                 args=timer_args,  # type: ignore
                                                 kwargs=timer_kwargs)  # type: ignore
-        # if restore_timer and not disable_auto_store:
-            cp._auto_store_timer = DelayTimer(timeout=timer_seconds,  # type: ignore
-                                              userHandler=cp.to_event,  # type: ignore
-                                              args=timer_args,  # type: ignore
-                                              kwargs=timer_kwargs)  # type: ignore
-            if pause_auto_store is not None:
+            cp_kwargs = copy.copy(timer_kwargs)  # type: ignore
+            if update_auto_store_severity is not None:
+                # fmt: off
+                cp_kwargs['event_severity'] = update_auto_store_severity  # type: ignore
+                # fmt: on
+            cp._auto_store_timer = DelayTimer(
+                timeout=copy.copy(timer_seconds),  # type: ignore
+                userHandler=cp.to_event,  # type: ignore
+                args=copy.copy(timer_args),  # type: ignore
+                kwargs=cp_kwargs)  # type: ignore
+            if pause_auto_store_seconds is not None:
                 cp._auto_store_timer.stop()
-                DelayTimer(timeout=pause_auto_store,
+                DelayTimer(timeout=pause_auto_store_seconds,
                            userHandler=cp._auto_store_timer.restart)
         if split_comment is not None:
             cp.add_reason(split_comment)
