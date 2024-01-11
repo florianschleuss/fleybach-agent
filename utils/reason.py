@@ -237,3 +237,12 @@ class ReasonFlow:
             if self._auto_store_timer is not None:
                 self._auto_store_timer.stop()
         return self._event
+
+    def remove(self):
+        """
+        Stops the execution of the auto store timer in a graceful manner.
+        Used when multiple splits happend and the base RF is not needed any more.
+        """
+        if self._auto_store_timer is not None:
+            self._auto_store_timer.timer.cancel()
+            self._auto_store_timer = None

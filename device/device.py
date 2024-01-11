@@ -146,8 +146,7 @@ class DeviceController:
                         timer_seconds=d.rest_active_time_seconds,
                         reason_flow=drf)
         if reason_flow is not None:
-            if reason_flow._auto_store_timer is not None:
-                reason_flow._auto_store_timer.stop()
+            reason_flow.remove()
         return
 
     def _available_power(self, current_power_consumption: float):
