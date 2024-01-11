@@ -56,9 +56,11 @@ class TemperatureSafetyStep():
                  type: TemperatureSafetyStepType,
                  value: float,
                  interval_seconds: int,
-                 sensor_name: str):
+                 sensor_name: str,
+                 end_value: Optional[float] = None):
         self.type: TemperatureSafetyStepType = type
         self.value: float = value
+        self.end_value: Optional[float] = end_value
         self.interval_seconds: int = interval_seconds
         self.duration_seconds: int = 60
         self.sensor_name: str = sensor_name
@@ -89,12 +91,15 @@ class TemperatureSafetyStep():
             tss.duration_seconds = object['duration_seconds']
         if 'alert_enabled' in object:
             tss._alert_enabled = object['alert_enabled']
+        if 'end_value_degrees_c' in object:
+            tss.end_value = object['end_value_degrees_c']
         return tss
 
     def to_dict(self) -> Dict:
         return {
             'type': str(self.type),
             'value': self.value,
+            'end_value': self.end_value,
             'interval_seconds': self.interval_seconds,
             'duration_seconds': self.duration_seconds,
             'sensor_name': self.sensor_name,
@@ -110,8 +115,12 @@ class TemperatureSafetyStep():
         if self.last_trigger + self.interval_seconds > time.time():
             return True
         if self.type == TemperatureSafetyStepType.LOW:
+            if self.end_value is not None:
+                return self.value < temperature or temperature <= self.end_value
             return self.value < temperature
         elif self.type == TemperatureSafetyStepType.HIGH:
+            if self.end_value is not None:
+                return self.value > temperature or temperature >= self.end_value
             return self.value > temperature
         return False
 
