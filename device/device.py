@@ -205,8 +205,8 @@ class DeviceController:
         device: PowerSwitchable = self._devices[device_name]
 
         reason_flow: ReasonFlow = ReasonFlow(
-            name=f"Manual switch at {datetime.datetime.now()} UTC",
-            initiator=device.name.replace('_', '-').title(),
+            name=f"Manual switch for {device.name.capitalize()}",
+            initiator=user,
             initial_comment=f"{device.name.capitalize()} switched by '{user}'")
         to_value: bool = new_state if new_state is not None else not device.state
         set_value: bool = device.set_state(new_state=to_value,
@@ -482,8 +482,11 @@ def get_power_consumption() -> float:
     except requests.exceptions.ConnectionError:
         raise ConnectionError(
             "Connection time out")
-    if get.json() is None:
-        raise ConnectionError("No data was returned")
+    try:
+        if get.json() is None:
+            raise ConnectionError("No data was returned")
+    except requests.exceptions.JSONDecodeError:
+        raise ConnectionError("Invalid formed data was returned")
     data: Dict = get.json()['data'][0]
     if data['lastModified'] + 30 < time.time():
         Event("Power value received from backend is not up to date",
