@@ -2,7 +2,7 @@
     "routines": [
         {
             "name": "solar history",
-            "type": "history",
+            "type": "cycle",
             "intervalSeconds": 86400,
             "sensorNames": [
                 "totalProduction"
@@ -10,7 +10,7 @@
         },
         {
             "name": "power history",
-            "type": "history",
+            "type": "cycle",
             "intervalSeconds": 3600,
             "sensorNames": [
                 "acWOut",
