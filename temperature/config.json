@@ -4,10 +4,42 @@
       "name": "temperature history",
       "type": "cycle",
       "intervalSeconds": 3600,
-      "sensorNames": ["water", "air", "basement"]
+      "sensorNames": [
+        "water",
+        "air",
+        "basement"
+      ]
     }
   ],
-  "sensors": [],
+  "sensors": [
+    {
+      "deviceId": "28-ff2bbfa11604",
+      "name": "air",
+      "serialConnected": true,
+      "enabled": true
+    },
+    {
+      "deviceId": "28-e187d0c12106",
+      "name": "water",
+      "offset": 2,
+      "serialConnected": true,
+      "enabled": true
+    },
+    {
+      "deviceId": "28-aa7b22131301",
+      "name": "buffer_bottom",
+      "upperBound": 100,
+      "serialConnected": true,
+      "enabled": true
+    },
+    {
+      "deviceId": "28-aaef14131301",
+      "name": "buffer_top",
+      "upperBound": 100,
+      "serialConnected": true,
+      "enabled": true
+    }
+  ],
   "sensorsBackup": [
     {
       "deviceId": "28-03179779c5de",
@@ -27,13 +59,13 @@
     {
       "deviceId": "28-01131314efaa",
       "name": "buffer_top",
-      "upperBound": "100",
+      "upperBound": 100,
       "enabled": false
     },
     {
       "deviceId": "28-011313227baa",
       "name": "buffer_bottom",
-      "upperBound": "100",
+      "upperBound": 100,
       "enabled": false
     }
   ]

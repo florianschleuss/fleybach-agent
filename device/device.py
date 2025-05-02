@@ -12,7 +12,7 @@ from utils.event import Event, EventSeverity, EventType
 from utils.logging import format_seconds_to_mm_ss, get_module_logger
 from utils.mail import AlertEmail, EmailSender
 from utils.reason import ReasonFlow
-from utils.switchable.powerSwitchable import LocalDevice, PowerSwitchable, RemoteDevice, RemoteDeviceType
+from utils.switchable.powerSwitchable import HomeAssistantDevice, LocalDevice, PowerSwitchable, RemoteDevice, RemoteDeviceType
 from utils.switchable.switchable import TemperatureSafety
 from utils.task import Action, Task
 from utils.transportModels import ReturnObject, camel_case_to_snake_case
@@ -100,7 +100,7 @@ class DeviceController:
                 with optional filtering and sorting direction.
         """
         devices = [device for device in self._devices.values()
-                   if device._state == state]
+                   if device._state == state and not device.disable_automatic_management]
         devices = sorted(
             devices,
             key=lambda device: (device.importance,
@@ -121,9 +121,10 @@ class DeviceController:
         Checks if all devices have fullfilled their min_active_time.
         If not activates them for the needed amount of time.        
         """
-
         # Creat info-event for runtime summary of day
         for d in self._devices.values():
+            if d.disable_automatic_management:
+                continue
             if d.rest_active_time_seconds > 0:
                 if reason_flow is not None:
                     reason_flow.add_reason(
@@ -138,7 +139,9 @@ class DeviceController:
 
         # Min. active time checking
         for d in self._devices.values():
-            if d.rest_active_time_seconds == 0:
+            if d.disable_automatic_management:
+                continue
+            if d.rest_active_time_seconds <= 0:
                 break
             drf = reason_flow.split() if reason_flow is not None else None
             d.set_state(True,
@@ -253,6 +256,16 @@ class DeviceController:
                     'dependencies', [])],
                 updating_device=devices.get(d['name'], None))  # type: ignore
             new_devices[rd.name] = rd
+
+        # Homeassistant devices
+        for d in device_config.get('homeassistant_devices', []):
+            hd: HomeAssistantDevice = HomeAssistantDevice.from_object(
+                d,
+                dependencies=[new_devices[dependency_name]
+                              for dependency_name in d.get(
+                    'dependencies', [])],
+                updating_device=devices.get(d['name'], None))  # type: ignore
+            new_devices[hd.name] = hd
         return new_devices
 
     def dump_config(self):
@@ -263,7 +276,8 @@ class DeviceController:
         """
         config_data = {
             'local_devices': [],
-            'remote_devices': []
+            'remote_devices': [],
+            'homeassistant_devices': []
         }
         irrelevant_keys = [
             'active_time_seconds',
@@ -284,6 +298,9 @@ class DeviceController:
                 config_data['local_devices'].append(filtered_device_data)
             elif isinstance(device, RemoteDevice):
                 config_data['remote_devices'].append(filtered_device_data)
+            elif isinstance(device, HomeAssistantDevice):
+                config_data['homeassistant_device'].append(
+                    filtered_device_data)
 
         with open(self._device_config_path, 'r') as file:
             device_config: Dict = yaml.safe_load(file)
@@ -333,7 +350,7 @@ class DeviceController:
                                                        reverse=True,
                                                        reason_flow=reason_flow)
             for device in devices:
-                if device._power_off_tolerance > available_power:
+                if device.power_off_tolerance > available_power:
                     if not device.set_state(False,
                                             user='Automation',
                                             reason_flow=reason_flow.split(f"Try to set state to '{False}' for '{device.name}' with user 'Automation'")):
@@ -425,7 +442,7 @@ def _check_power_component(rf: ReasonFlow) -> bool:
         get = requests.get(url="http://power/activate")
     except requests.exceptions.RequestException:
         rf.add_reason(
-            f"Local temperature component is not reachable")
+            f"Local power component is not reachable")
         return local_power_component
     sensors: List[str] = get.json()['sensors']
     if set(['total']).issubset(set(sensors)):
@@ -498,7 +515,7 @@ def get_temperatures() -> Dict[str, float]:
     global local_temperature_component
     if local_temperature_component:
         # TODO prioritize local component
-        return {}
+        pass
 
     jwt.v()
     try:
@@ -516,7 +533,7 @@ def get_temperatures() -> Dict[str, float]:
     data: List[Dict] = get.json()['data']
     temps = {}
     for item in data:
-        if item['lastModified'] + 30 < time.time():
+        if item['lastModified'] + 60 < time.time():
             Event("Temperature value received from backend is not up to date",
                   event_severity=EventSeverity.IMPORTANT,
                   details=[f"Sensor name: '{item['name']}'"],
@@ -533,14 +550,17 @@ def connect():
     Registers endpoint as soon as the WS is connected
     """
     sio.emit('customer_domain', CUSTOMER_DOMAIN)
-    Event(f"Connected as '{CUSTOMER_DOMAIN}'!", initiator='Device Component',
-          event_severity=EventSeverity.DEBUG).store()
+    Event("WSO Connected", initiator='Device Component',
+          event_severity=EventSeverity.INFO,
+          details=[f"Registered as '{CUSTOMER_DOMAIN}'"]).store()
 
 
 @sio.event
 def disconnect():
-    Event(f"'{CUSTOMER_DOMAIN.capitalize()}' Disconnected!",
-          initiator='Device Component', event_severity=EventSeverity.DEBUG).store()
+    Event("WSO Disconnected",
+          initiator='Device Component', 
+          event_severity=EventSeverity.INFO,
+          details=[f"'{CUSTOMER_DOMAIN.capitalize()}' disconnected"]).store()
 
 
 @sio.on('task')  # type: ignore
@@ -594,6 +614,8 @@ def handle_task_event(data: dict):
                            'hysteresis_seconds',
                            're_hysteresis_seconds',
                            'min_active_time_seconds',
+                           'max_active_time_seconds',
+                           'power_off_tolerance',
                            'shutdown_time_seconds',
                            'host',
                            'importance']

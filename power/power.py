@@ -44,15 +44,19 @@ sml_parser = SMLSerialParser()
 
 
 def update_sensor(id: str, name: str, value: Union[int, float], unit: str, type: str) -> bool:
+    '''
+    :return: True if update was successful
+    '''
     jwt.v()
-    sensor = config.get_sensor(id)
+    if (sensor := config.get_sensor(id)) is None:
+        return False
     value = value + sensor.offset
     try:
-        patch = r.patch(f'http://{CUSTOMER_DOMAIN}/sensor/sensors/{id}?customer_id={jwt.token.customer_id}', json={
+        patch = r.patch(f'http://{AUTH_URL}/sensor/sensors/{id}?customer_id={jwt.token.customer_id}', json={
             'value': value
         }, headers={'x-access-token': jwt.token._token})
         if patch.status_code == 404:
-            post = r.post(f'http://{CUSTOMER_DOMAIN}/sensor/sensors?customer_id={jwt.token.customer_id}', json={
+            post = r.post(f'http://{AUTH_URL}/sensor/sensors?customer_id={jwt.token.customer_id}', json={
                 'id': id,
                 'name': name,
                 'value': value,
@@ -70,20 +74,21 @@ def update_sensor(id: str, name: str, value: Union[int, float], unit: str, type:
 
 
 def batch_update_sensor(sensors_list: List[Dict]):
+    '''
+    :return: True if update was successful
+    '''
     if len(sensors_list) == 0:
         return
     jwt.v()
     try:
-        post = r.patch(f'http://{CUSTOMER_DOMAIN}/sensor/sensors?customer_id={jwt.token.customer_id}', json={
+        post = r.patch(f'http://{AUTH_URL}/sensor/sensors?customer_id={jwt.token.customer_id}', json={
             'sensors': sensors_list
         }, headers={'x-access-token': jwt.token._token})
     except r.exceptions.ConnectionError as e:
         for update_sensor in sensors_list:
-            try:
-                sensor = config.get_sensor(update_sensor['id'])
-                sensor.present_in_database = False
-            except StopIteration:
-                pass
+            if (sensor := config.get_sensor(update_sensor['id'])) is None:
+                return False
+            sensor.present_in_database = False
         Event("Error while batch_update_sensor()",
               details=[str(e)],
               initiator='Power Component',
@@ -95,7 +100,7 @@ def batch_update_sensor(sensors_list: List[Dict]):
 def make_history(names: List):
     jwt.v()
     try:
-        post = r.post(f'http://{CUSTOMER_DOMAIN}/sensor/sensors/names/history?customer_id={jwt.token.customer_id}', json={
+        post = r.post(f'http://{AUTH_URL}/sensor/sensors/names/history?customer_id={jwt.token.customer_id}', json={
             'names': names
         }, headers={'x-access-token': jwt.token._token})
     except r.exceptions.ConnectionError as e:
@@ -172,6 +177,7 @@ def check_routines():
 
 
 def update_loop() -> None:
+    global sml_parser
     while True:
         start = datetime.now().timestamp()
         sensors = []
@@ -196,10 +202,11 @@ def update_loop() -> None:
                 sensors.append(
                     {'id': 'pw-'+k, 'value': v, 'name': k})
         else:
-            Event("No power data from serial connection",
+            Event(f"No power data from serial connection {sml_parser.serial_port}",
                   initiator='Power Component',
                   event_severity=EventSeverity.IMPORTANT,
                   event_type=EventType.ERROR).store()
+            sml_parser = SMLSerialParser(port='/dev/ttyUSB1')
 
         batch_update_sensor(sensors_list=sensors)
         check_routines()

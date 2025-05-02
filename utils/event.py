@@ -155,7 +155,7 @@ class Event:
         if self.details is not None:
             data['details'] = self.details
         try:
-            post = requests.post(f'http://{CUSTOMER_DOMAIN}/event/events?customer_id={jwt.token.customer_id}',
+            post = requests.post(f'http://{AUTH_URL}/event/events?customer_id={jwt.token.customer_id}',
                                  json=data, headers={'x-access-token': jwt.token._token})
             return post.status_code == 200
         except requests.exceptions.ConnectionError:

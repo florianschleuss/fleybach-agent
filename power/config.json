@@ -1,21 +1,21 @@
 {
     "routines": [
         {
-            "name": "solar history",
+            "name": "power longterm history",
             "type": "cycle",
             "intervalSeconds": 86400,
             "sensorNames": [
-                "totalProduction"
+                "totalProduction",
+                "sold",
+                "bought"
             ]
         },
         {
             "name": "power history",
             "type": "cycle",
-            "intervalSeconds": 3600,
+            "intervalSeconds": 360,
             "sensorNames": [
                 "acWOut",
-                "bought",
-                "sold",
                 "total"
             ]
         }

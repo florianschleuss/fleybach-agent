@@ -11,6 +11,7 @@ class Sensor:
                  type: Optional[str] = None,
                  offset: float = 0,
                  enabled: bool = True,
+                 serial_connected: bool = False,
                  upper_bound: int = 50,
                  lower_bound: int = -20
                  ) -> None:
@@ -20,11 +21,24 @@ class Sensor:
         self.type: Optional[str] = type
         self.offset: float = offset
         self.enabled: bool = enabled
+        self.serial_connected: bool = serial_connected
+        self.value: float = 0
+        self.last_updated: float = time.time()
         self.upper_bound: int = upper_bound
         self.lower_bound: int = lower_bound
         self.disconnected_cycles: int = 0
         self.present_in_database: bool = False
         self.update_timeout: float = 0
+
+    def update_value(self, value: float) -> None:
+        self.disconnected_cycles = 0
+        self.value = value
+        self.last_updated = time.time()
+
+    def get_value_by_timedelta(self, delta_seconds: float) -> Optional[float]:
+        if self.last_updated > time.time() - delta_seconds:
+            return self.value
+        return
 
     @classmethod
     def from_object(
@@ -47,6 +61,8 @@ class Sensor:
             sensor.offset = object['offset']
         if 'enabled' in object:
             sensor.enabled = object['enabled']
+        if 'serialConnected' in object:
+            sensor.serial_connected = object['serialConnected']
         if 'upperBound' in object:
             sensor.upper_bound = object['upperBound']
         if 'lowerBound' in object:
@@ -123,8 +139,8 @@ class SensorConfig:
 
         return cls(sensors=sensors, routines=routines)
 
-    def get_sensor(self, device_id: str) -> Sensor:
-        return next(s for s in self.sensors if s.device_id == device_id)
+    def get_sensor(self, device_id: str) -> Optional[Sensor]:
+        return next((s for s in self.sensors if s.device_id == device_id), None)
 
 
 class CalculationOperand(Enum):

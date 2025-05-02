@@ -66,7 +66,7 @@ class ParseTimer:
 
 
 class SMLSerialParser:
-    def __init__(self, port='/dev/ttyUSB0', baudrate=9600, timeout: float = 0.1):
+    def __init__(self, port='/dev/ttyUSBPow', baudrate=9600, timeout: float = 0.1):
         """
         Initialize the SMLSerialParser.
 
@@ -74,6 +74,7 @@ class SMLSerialParser:
         :param baudrate: The baud rate of the serial port.
         :param timeout: The timeout for the parse timer.
         """
+        # TODO try to auto-select the port
         self.serial_port = serial.Serial(port=port, baudrate=baudrate, parity=serial.PARITY_NONE,
                                          stopbits=serial.STOPBITS_ONE, bytesize=serial.EIGHTBITS, timeout=0)
         self.timeout = timeout
@@ -81,6 +82,9 @@ class SMLSerialParser:
         self.input_data = b""
         self.running = True
         self.energy_data: Optional[EnergyData] = None
+
+    def stop_run(self):
+        self.running = False
 
     def parse_data(self) -> None:
         """
@@ -123,12 +127,13 @@ class SMLSerialParser:
 
         # this_time = time.time()
 
+        timeout_timer: ParseTimer = ParseTimer(10, self.stop_run)
         try:
+            timeout_timer.timer.start()
             self.serial_port.reset_input_buffer()
             self.serial_port.reset_output_buffer()
             self.timer = ParseTimer(self.timeout, self.parse_data)
             self.timer.timer.start()
-
             while self.running:
                 while self.serial_port.in_waiting > 0:
                     self.input_data += self.serial_port.read()
@@ -138,6 +143,8 @@ class SMLSerialParser:
             print(f"Error while reading from serial port: {e}")
 
         finally:
+            if timeout_timer is not None:
+                timeout_timer.stop()
             if self.timer is not None:
                 self.timer = None
             if self.serial_port.is_open:

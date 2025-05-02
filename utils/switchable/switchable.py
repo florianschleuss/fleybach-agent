@@ -184,7 +184,8 @@ class Switchable:
                  hysteresis_seconds: int = 0,
                  re_hysteresis_seconds: int = 0,
                  importance: int = 0,
-                 temperature_safety: Optional[TemperatureSafety] = None
+                 temperature_safety: Optional[TemperatureSafety] = None,
+                 disable_automatic_management: bool = False
                  ) -> None:
         # Internal name of SW
         self.name: str = name
@@ -233,6 +234,9 @@ class Switchable:
 
         # Temperature information on which it is safe to operate
         self._temperature_safety: Optional[TemperatureSafety] = temperature_safety
+
+        # Keep the device out of any automatic switching procedure
+        self.disable_automatic_management: bool = disable_automatic_management
         return
 
     @property
@@ -268,6 +272,9 @@ class Switchable:
             a for a in self._actuators if a.dependency_type != DependencyType.USER]
         return
 
+    def has_user_actuators(self) -> bool:
+        return any(a.dependency_type == DependencyType.USER for a in self._actuators)
+
     def _switch_on(self,
                    user: str,
                    timer_seconds: Optional[int] = None,
@@ -288,7 +295,7 @@ class Switchable:
         if self._restart_timer is not None:
             self._restart_timer.stop()
             self._restart_timer = None
-        if self.shutdown_time_seconds != 0 or timer_seconds is not None:
+        if (self.shutdown_time_seconds != 0 and Depender(name=user, user=user).dependency_type is DependencyType.USER) or timer_seconds is not None:
             dtrf = None
             time_delta = self.shutdown_time_seconds if timer_seconds is None else timer_seconds
             if reason_flow is not None:
@@ -398,9 +405,9 @@ class Switchable:
         :return: The rest time the device needs to be active
         '''
         rest_time: int = self.min_active_time_seconds - self.active_time_seconds
-        if self.max_active_time_seconds < self.active_time_seconds and rest_time < 0:
+        if rest_time <= 0:
             return 0
-        return self.min_active_time_seconds - self.active_time_seconds
+        return rest_time
 
     def to_dict(self, full=False) -> Dict:
         device_dict = {'name': self.name,
@@ -412,6 +419,7 @@ class Switchable:
                        'shutdown_time_seconds': self.shutdown_time_seconds,
                        'importance': self.importance,
                        'active_time_seconds': self.active_time_seconds,
+                       'disable_automatic_management': self.disable_automatic_management,
                        'displayed_description': self.displayed_description,
                        'displayed_name': self.displayed_name}
         device_dict['shutdown_timer'] = self._shutdown_timer.rest_time(
@@ -483,7 +491,7 @@ class Switchable:
                         reason_flow.to_event(EventSeverity.DEBUG)
                 return
 
-            if self.max_active_time_pause():
+            if self.max_active_time_pause() and not self.has_user_actuators():
                 if reason_flow is not None:
                     reason_flow.add_reason(
                         f"Max active time blocked attempt.")
