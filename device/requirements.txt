@@ -1,0 +1,7 @@
+python-socketio
+pyaml
+requests
+RPi.GPIO
+python-socketio[client]
+pyjwt
+python-dotenv

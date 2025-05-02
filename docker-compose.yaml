@@ -1,0 +1,50 @@
+services:
+  # DS18B12 sensor read out
+  temperature:
+    container_name: temperature
+    restart: always
+    build: ./temperature
+    privileged: true
+    volumes:
+      - ./temperature:/usr/src/temperature
+      - ./utils:/usr/src/temperature/utils
+      - /dev:/dev
+    environment:
+      - CUSTOMER_DOMAIN
+      - CUSTOMER_SECRET
+      - AUTH_URL
+      - GMX_USERNAME
+      - GMX_PASSWORD
+      - ALERT_RECIPIENTS
+  # SMA Tripower and serial powermeter read out
+  power:
+    container_name: power
+    restart: always
+    build: ./power
+    privileged: true
+    volumes:
+      - ./power:/usr/src/power
+      - ./utils:/usr/src/power/utils
+      - /dev:/dev
+    environment:
+      - CUSTOMER_DOMAIN
+      - CUSTOMER_SECRET
+      - AUTH_URL
+      - SMA_MODBUS_IP
+      - SMA_MODBUS_PORT
+  # Websocket endpoint
+  device:
+    container_name: device
+    restart: always
+    build: ./device
+    privileged: true
+    volumes:
+      - ./device:/usr/src/device
+      - ./utils:/usr/src/device/utils
+    environment:
+      - CUSTOMER_DOMAIN
+      - CUSTOMER_SECRET
+      - AUTH_URL
+      - GMX_USERNAME
+      - GMX_PASSWORD
+      - ALERT_RECIPIENTS
