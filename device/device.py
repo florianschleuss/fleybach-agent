@@ -1,8 +1,10 @@
+"""depice.py"""
 import datetime
-import requests
+from zoneinfo import ZoneInfo
 import os
 import time
 from typing import Any, Dict, List, Optional
+import requests
 import yaml
 import socketio
 
@@ -12,15 +14,18 @@ from utils.event import Event, EventSeverity, EventType
 from utils.logging import format_seconds_to_mm_ss, get_module_logger
 from utils.mail import AlertEmail, EmailSender
 from utils.reason import ReasonFlow
-from utils.switchable.powerSwitchable import HomeAssistantDevice, LocalDevice, PowerSwitchable, RemoteDevice, RemoteDeviceType
 from utils.switchable.switchable import TemperatureSafety
+from utils.switchable.powerSwitchable import HomeAssistantDevice, LocalDevice, PowerSwitchable, RemoteDevice
+from utils.switchable.dynamicPowerSwitchable import DynamicPowerSwitchable
 from utils.task import Action, Task
 from utils.transportModels import ReturnObject, camel_case_to_snake_case
 
 logger = get_module_logger()
-sio: socketio.Client = socketio.Client()
+sio: socketio.Client = socketio.Client(
+                # ssl_verify=False
+                )
 
-DEADLINE_CHECK_TIME = datetime.time(19, 00, 00)  # UTC
+DEADLINE_CHECK_TIME = datetime.time(19, 0, tzinfo=ZoneInfo("Europe/Berlin"))
 REFRESH_TIME_SECONDS = 10
 CUSTOMER_DOMAIN = os.environ.get('CUSTOMER_DOMAIN', "default")
 CUSTOMER_SECRET = os.environ.get('CUSTOMER_SECRET', "")
@@ -40,12 +45,18 @@ def deep_update(mapping: Dict[str, Any], *updating_mappings: Dict[str, Any]) -> 
         for k, v in updating_mapping.items():
             if k in old_mapping and isinstance(old_mapping[k], dict) and isinstance(v, dict):
                 old_mapping[k] = deep_update(old_mapping[k], v)
-            if k in old_mapping and isinstance(old_mapping[k], list) and isinstance(v, list):
+            elif k in old_mapping and isinstance(old_mapping[k], list) and isinstance(v, list):
                 if len(v) == 0:
                     old_mapping[k] = []
-                if isinstance(v[0], dict):
-                    old_mapping[k] = [deep_update(
-                        old_mapping[k][ind], i) for ind, i in enumerate(v)]
+                elif v and isinstance(v[0], dict) and old_mapping[k] and isinstance(old_mapping[k][0], dict):
+                    merged_list: List[Any] = []
+                    for i, nv in enumerate(v):
+                        if i < len(old_mapping[k]) and isinstance(old_mapping[k][i], dict) and isinstance(nv, dict):
+                            merged_list.append(
+                                deep_update(old_mapping[k][i], nv))
+                        else:
+                            merged_list.append(nv)
+                    old_mapping[k] = merged_list
                 else:
                     old_mapping[k] = v
             else:
@@ -54,6 +65,7 @@ def deep_update(mapping: Dict[str, Any], *updating_mappings: Dict[str, Any]) -> 
 
 
 class DeviceController:
+    """Device Controller"""
     def __init__(
         self,
         devices: Optional[Dict[str, PowerSwitchable]] = None,
@@ -100,7 +112,9 @@ class DeviceController:
                 with optional filtering and sorting direction.
         """
         devices = [device for device in self._devices.values()
-                   if device._state == state and not device.disable_automatic_management]
+                   if device._state == state 
+                   and not isinstance(device, DynamicPowerSwitchable)
+                   and not device.disable_automatic_management]
         devices = sorted(
             devices,
             key=lambda device: (device.importance,
@@ -109,7 +123,7 @@ class DeviceController:
         if reason_flow is not None:
             if len(devices) == 0:
                 reason_flow.add_reason(
-                    f"No relevant devices in list").to_event(EventSeverity.DEBUG)
+                    "No relevant devices in list").to_event(EventSeverity.DEBUG)
                 return devices
             reason_flow.add_reason(
                 f"Relevant devices in state '{state}' are {[d.name for d in devices]}")
@@ -123,6 +137,8 @@ class DeviceController:
         """
         # Creat info-event for runtime summary of day
         for d in self._devices.values():
+            if isinstance(d, DynamicPowerSwitchable):
+                continue
             if d.disable_automatic_management:
                 continue
             if d.rest_active_time_seconds > 0:
@@ -142,7 +158,7 @@ class DeviceController:
             if d.disable_automatic_management:
                 continue
             if d.rest_active_time_seconds <= 0:
-                break
+                continue
             drf = reason_flow.split() if reason_flow is not None else None
             d.set_state(True,
                         user='Deadline-Check',
@@ -161,7 +177,7 @@ class DeviceController:
         :return: The available power, which is the average power consumption over a specified time period.
         """
         for k, v in list(self._avrg_power_consumtion.items()):
-            if v < time.time() - self._avrg_power_timespan:
+            if k < time.time() - self._avrg_power_timespan:
                 del self._avrg_power_consumtion[k]
         self._avrg_power_consumtion[int(
             time.time())] = current_power_consumption
@@ -195,6 +211,20 @@ class DeviceController:
 
     def has_device(self, name: str) -> bool:
         return name in self._devices
+
+    def reset_all_devices(self) -> None:
+        for device in self._devices.values():
+            device.reset()
+        Event("All devices have been reset",
+              event_severity=EventSeverity.INFO,
+              initiator='Device Controller').store()
+        return
+
+    def test_routine(self) -> None:
+        Event("Test Routine",
+              event_severity=EventSeverity.INFO,
+              initiator='Device Controller').store()
+        return
 
     def switch_device(self,
                       device_name: str,
@@ -266,6 +296,18 @@ class DeviceController:
                     'dependencies', [])],
                 updating_device=devices.get(d['name'], None))  # type: ignore
             new_devices[hd.name] = hd
+    
+    
+        # Dynamic devices
+        for d in device_config.get('dynamic_devices', []):
+            dyn: DynamicPowerSwitchable = DynamicPowerSwitchable.from_object(
+                d,
+                dependencies=[new_devices[dependency_name]
+                              for dependency_name in d.get(
+                    'dependencies', [])],
+                updating_device=devices.get(d['name'], None))  # type: ignore
+            new_devices[dyn.name] = dyn
+
         return new_devices
 
     def dump_config(self):
@@ -277,7 +319,8 @@ class DeviceController:
         config_data = {
             'local_devices': [],
             'remote_devices': [],
-            'homeassistant_devices': []
+            'homeassistant_devices': [],
+            'dynamic_devices': []
         }
         irrelevant_keys = [
             'active_time_seconds',
@@ -285,10 +328,10 @@ class DeviceController:
             'shutdown_timer',
             'state',
             'power_all']
-        default_local_device_data = LocalDevice(
-            name='-1', gpio=50, power=-1).to_dict()
-        default_remote_device_data = RemoteDevice(name='-1',
-                                                  power=-1, device_type=RemoteDeviceType.DEFAULT, host="-1").to_dict()
+        # default_local_device_data = LocalDevice(
+        #     name='-1', gpio=50, power=-1).to_dict()
+        # default_remote_device_data = RemoteDevice(name='-1',
+        #                                           power=-1, device_type=RemoteDeviceType.DEFAULT, host="-1").to_dict()
 
         for device in self._devices.values():
             device_data = device.to_dict()
@@ -299,17 +342,22 @@ class DeviceController:
             elif isinstance(device, RemoteDevice):
                 config_data['remote_devices'].append(filtered_device_data)
             elif isinstance(device, HomeAssistantDevice):
-                config_data['homeassistant_device'].append(
+                config_data['homeassistant_devices'].append(
                     filtered_device_data)
+            elif isinstance(device, DynamicPowerSwitchable):
+                config_data['dynamic_devices'].append(filtered_device_data)
 
-        with open(self._device_config_path, 'r') as file:
-            device_config: Dict = yaml.safe_load(file)
+        try:
+            with open(self._device_config_path, 'r', encoding='utf-8') as f:
+                device_config = yaml.safe_load(f) or {}
+        except FileNotFoundError:
+            device_config = {}
         device_config = deep_update(device_config, config_data)
         with open(self._device_config_path, 'w', encoding='utf-8') as file:
             yaml.dump(device_config, file, sort_keys=False, allow_unicode=True)
 
     @staticmethod
-    def is_within_x_hours_range(target_time: datetime.time, x_hours: int) -> bool:
+    def is_within_x_hours_range(target_time: datetime.time, x_hours: int, tz=ZoneInfo("Europe/Berlin")) -> bool:
         """
         Check if the current time is within a specified number of hours around the given time.
 
@@ -319,14 +367,81 @@ class DeviceController:
         :return: True if the target time is within the specified hours range from the current time, False otherwise.
         """
         # Get the current time
-        current_time = datetime.datetime.now().time()
+        now = datetime.datetime.now(tz)
+        target_dt = now.replace(
+            hour=target_time.hour, minute=target_time.minute, second=target_time.second, microsecond=0)
+        end_dt = target_dt + datetime.timedelta(hours=x_hours)
+        return target_dt <= now <= end_dt
+    
+    def dynamic_tick(self,
+                     grid_power_balance: float,
+                     temperatures: Dict[str, float]) -> None:
+        """
+        Run the dynamic control logic for all DynamicPowerSwitchable devices.
 
-        # Calculate the custom time window
-        custom_window_end_time = (datetime.datetime.combine(
-            datetime.datetime.today(), target_time) + datetime.timedelta(hours=x_hours)).time()
+        grid_power_balance: BilanzStrom-like value (negative => export).
+        temperatures: sensor name -> temperature, as returned by get_temperatures().
+        """
+        for device in self._devices.values():
+            if not isinstance(device, DynamicPowerSwitchable):
+                continue
 
-        # Check if the target time is within the specified hours range
-        return target_time <= current_time <= custom_window_end_time
+            if device.disable_automatic_management:
+                continue
+
+            buffer_temp_top = temperatures.get(device.buffer_sensor_name)
+            outdoor_temp = temperatures.get(device.outdoor_sensor_name)
+
+            if buffer_temp_top is None or outdoor_temp is None:
+                    missing = []
+                    if buffer_temp_top is None:
+                        missing.append(device.buffer_sensor_name)
+                    if outdoor_temp is None:
+                        missing.append(device.outdoor_sensor_name)
+
+                    Event(
+                        "Dynamic controller missing required temperature sensors",
+                        details=[
+                            f"Dynamic device: {device.name}",
+                            f"Missing sensors: {', '.join(missing)}",
+                            f"Available temperatures: {temperatures}"
+                        ],
+                        initiator="DynamicTick",
+                        event_severity=EventSeverity.DEBUG
+                    ).store()
+
+                    continue
+
+            try:
+                should_send = device.update_control(
+                    buffer_temp_top=buffer_temp_top,
+                    outdoor_temp=outdoor_temp,
+                    grid_power_balance=grid_power_balance,
+                    user="HeatPumpController"
+                )
+
+                if not should_send:
+                    continue
+
+                # Use HEAT/WAIT decision to switch the real device
+                hp_new_state = device.state  # True=HEAT, False=WAIT
+
+                self.switch_device(
+                    device_name=device.controlled_device_name,
+                    user="HeatPumpController",
+                    new_state=hp_new_state
+                )
+
+                # If you later expose RL_WPSoll to HA, you can grab:
+                # device.heat_pump_return_setpoint
+                # and send it here.
+
+            except Exception as exc:
+                Event("Error in dynamic device control",
+                      details=[f"Dynamic device: {device.name}", str(exc)],
+                      initiator="HeatPumpController",
+                      event_severity=EventSeverity.IMPORTANT,
+                      event_type=EventType.ERROR).store()
 
     def tick(self,
              current_power_consumption: float) -> None:
@@ -339,7 +454,7 @@ class DeviceController:
 
         # ReasonFlow to store all decisions made througout the process
         reason_flow: ReasonFlow = ReasonFlow(
-            name=f"Power Tick",
+            name="Power Tick",
             initiator='Device Component',
             initial_comment=f"Tick with {available_power} available power",
             auto_store_event_severity=EventSeverity.DEBUG)
@@ -492,7 +607,7 @@ def get_power_consumption() -> float:
     jwt.v()
     try:
         get = requests.get(
-            f"https://api.florianschleuss.de/sensor/sensors/names?customer_id={jwt.token.customer_id}&names[]=total",
+            f"https://{AUTH_URL}/sensor/sensors/names?customer_id={jwt.token.customer_id}&names[]=total",
             headers={'x-access-token': jwt.token._token})
     except requests.exceptions.ConnectionError:
         raise ConnectionError(
@@ -520,11 +635,11 @@ def get_temperatures() -> Dict[str, float]:
     jwt.v()
     try:
         get = requests.get(
-            f"https://api.florianschleuss.de/sensor/sensors/type/temperature?customer_id={jwt.token.customer_id}",
-            headers={'x-access-token': jwt.token._token})
-    except requests.exceptions.ConnectionError:
+            f"https://{AUTH_URL}/sensor/sensors/type/temperature?customer_id={jwt.token.customer_id}",
+            headers={'x-access-token': jwt.token._token}, timeout=60)
+    except requests.exceptions.ConnectionError as exc:
         raise ConnectionError(
-            "Connection time out")
+            "Connection time out") from exc
     if get.status_code != 200:
         raise ConnectionError(
             f"API request decliend (status_code:{get.status_code})")
@@ -537,11 +652,58 @@ def get_temperatures() -> Dict[str, float]:
             Event("Temperature value received from backend is not up to date",
                   event_severity=EventSeverity.IMPORTANT,
                   details=[f"Sensor name: '{item['name']}'"],
-                  initiator='Device Component')
+                  initiator='Device Component').store()
             continue
         temps[item['name']] = float(item['value'])
 
     return temps
+
+
+ROUTINES = {
+    "daily_reset": {
+        "function": dc.reset_all_devices,
+        # Run at 00:00 (and 20:00 if added)
+        "times": [datetime.time(0, 0, tzinfo=ZoneInfo("Europe/Berlin"))],
+        "last_run_times": set()  # Keeps track of which times were run today
+    }
+}
+
+# Allowable time delta to "catch" the right minute
+EXECUTION_WINDOW = datetime.timedelta(seconds=REFRESH_TIME_SECONDS*4)
+
+
+def check_routines():
+    """
+    Routines that are executed on a recurring base
+    """
+
+    now = datetime.datetime.now(tz=ZoneInfo("Europe/Berlin"))
+    today = now.date()
+
+    for name, routine in ROUTINES.items():
+        for t in routine["times"]:
+            scheduled_datetime = datetime.datetime.combine(today, t)
+            if t.tzinfo is None:
+                scheduled_datetime = scheduled_datetime.replace(
+                    tzinfo=ZoneInfo("Europe/Berlin"))
+            identifier = scheduled_datetime.strftime(
+                "%Y-%m-%d %H:%M:%S")  # Unique key per scheduled time
+
+            if (
+                abs(now - scheduled_datetime) <= EXECUTION_WINDOW
+                and identifier not in routine["last_run_times"]
+            ):
+                routine["function"]()
+                routine["last_run_times"].add(identifier)
+
+        # Reset daily run history at midnight
+        if routine["last_run_times"] and all(
+            datetime.datetime.strptime(ts, "%Y-%m-%d %H:%M:%S").date() < today
+            for ts in routine["last_run_times"]
+        ):
+            routine["last_run_times"].clear()
+
+    return
 
 
 @sio.event
@@ -558,7 +720,7 @@ def connect():
 @sio.event
 def disconnect():
     Event("WSO Disconnected",
-          initiator='Device Component', 
+          initiator='Device Component',
           event_severity=EventSeverity.INFO,
           details=[f"'{CUSTOMER_DOMAIN.capitalize()}' disconnected"]).store()
 
@@ -618,7 +780,13 @@ def handle_task_event(data: dict):
                            'power_off_tolerance',
                            'shutdown_time_seconds',
                            'host',
-                           'importance']
+                           'importance',
+                           'outdoor_temp_cold_ref',
+                           'outdoor_temp_warm_ref',
+                           'design_supply_temp_max',
+                           'design_supply_temp_min',
+                           'pv_temp_boost_factor',
+                           'buffer_delta_supply']
         device = dc.get_device_by_name(task.action_args['deviceName'])
         updates = task.action_args['updates']
         for u in updates:
@@ -635,22 +803,57 @@ def handle_task_event(data: dict):
 
     return ReturnObject(status_code=422, error_code='failedAction', message="The action was not successful. Refer to logs").to_dict()
 
+MAX_RETRIES = 10
+BASE_DELAY = 2       # seconds
+MAX_DELAY = 120      # maximum delay between attempts
 
 if __name__ == "__main__":
     startup_check()
-    retries: int = 0
-    while not sio.connected and retries <= 10:
+    retries = 0
+    while not sio.connected and retries < MAX_RETRIES:
+        target_url = f"https://{AUTH_URL}"
         try:
-            sio.connect('https://api.florianschleuss.de', transports=['websocket'],
-                        socketio_path="socket/socket.io", wait=False)
+
+            sio.connect(
+                target_url,
+                transports=['websocket'],
+                socketio_path="socket/socket.io",
+                wait=False
+            )
+            if sio.connected:
+                break
         except socketio.client.exceptions.ConnectionError as e:
-            Event(f"SIO connect error",
-                  details=[str(e)],
-                  initiator='Device Component',
-                  event_severity=EventSeverity.CRITICAL,
-                  event_type=EventType.ERROR).store()
-        time.sleep(10)
+            Event(
+                f"SIO connect error (attempt {retries + 1}/{MAX_RETRIES})",
+                details=[
+                    f"Target URL: {target_url}/socket/socket.io",
+                    "Transport: websocket",
+                    f"Reason: {type(e).__name__} – {str(e)}"
+                ],
+                initiator='Device Component',
+                event_severity=EventSeverity.CRITICAL,
+                event_type=EventType.ERROR
+            ).store()
+
+        # --- Exponential backoff ---
+        delay = min(BASE_DELAY * (2 ** retries), MAX_DELAY)
+        Event(
+            f"Retrying socket connection in {delay}s",
+            initiator='Device Component',
+            event_severity=EventSeverity.DEBUG
+        ).store()
+
+        time.sleep(delay)
         retries += 1
+
+    # Handle permanent failure
+    if not sio.connected:
+        Event(
+            f"Failed to connect to SocketIO after {MAX_RETRIES} attempts",
+            initiator='Device Component',
+            event_severity=EventSeverity.CRITICAL,
+            event_type=EventType.ERROR
+        ).store()
     while True:
         start: float = datetime.datetime.now().timestamp()
 
@@ -660,13 +863,13 @@ if __name__ == "__main__":
             power = get_power_consumption()
             dc.tick(power)
         except ConnectionError as e:
-            Event(f"Error while get_power_consumption()",
+            Event("Error while get_power_consumption()",
                   details=[str(e)],
                   initiator='Device Component',
                   event_severity=EventSeverity.IMPORTANT,
                   event_type=EventType.ERROR).store()
         except TimeoutError:
-            Event(f"Timeout while get_power_consumption()",
+            Event("Timeout while get_power_consumption()",
                   initiator='Device Component',
                   event_severity=EventSeverity.IMPORTANT).store()
 
@@ -674,11 +877,22 @@ if __name__ == "__main__":
             temperatures = get_temperatures()
             dc.temperature_tick(temperatures)
         except ConnectionError as e:
-            Event(f"Error while get_temperatures()",
+            Event("Error while get_temperatures()",
                   details=[str(e)],
                   initiator='Device Component',
                   event_severity=EventSeverity.IMPORTANT,
                   event_type=EventType.ERROR).store()
+
+        try:
+            dc.dynamic_tick(grid_power_balance=power, temperatures=temperatures)
+        except Exception as exc:
+            Event("Error in dc.dynamic_tick",
+                  details=[str(exc)],
+                  initiator="HeatPumpController",
+                  event_severity=EventSeverity.IMPORTANT,
+                  event_type=EventType.ERROR).store()
+
+        check_routines()
 
         if (delta := (datetime.datetime.now().timestamp() - start)) < REFRESH_TIME_SECONDS:
             time.sleep(REFRESH_TIME_SECONDS - delta)

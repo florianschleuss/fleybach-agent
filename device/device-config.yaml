@@ -107,7 +107,7 @@ local_devices:
   max_active_time_seconds: 86400
   min_active_time_seconds: 0
   re_hysteresis_seconds: 0
-  shutdown_time_seconds: 0
+  shutdown_time_seconds: 7200
   power_off_tolerance: 0
   disable_automatic_management: false
 remote_devices:
@@ -130,7 +130,7 @@ homeassistant_devices:
   displayed_name: LG Wasser Heizung
   displayed_description: ''
   entity_id: water_heater.water_heater
-  device_type: HomeassistantDeviceType.LGWATERHEATER
+  device_type: HomeAssistantDeviceType.LGWATERHEATER
   power: 650
   max_active_time_seconds: 86400
   min_active_time_seconds: 0
@@ -142,9 +142,9 @@ homeassistant_devices:
   disable_automatic_management: true
 - name: lg_heat_pump
   displayed_name: LG Wärmepumpe
-  displayed_description: '10°C relative Änderung'
+  displayed_description: 10°C relative Änderung
   entity_id: climate.heat_pump
-  device_type: HomeassistantDeviceType.LGHEATPUMP
+  device_type: HomeAssistantDeviceType.LGHEATPUMP
   power: 3000
   max_active_time_seconds: 86400
   min_active_time_seconds: 0
@@ -154,3 +154,38 @@ homeassistant_devices:
   importance: 0
   power_off_tolerance: 0
   disable_automatic_management: true
+dynamic_devices:
+- name: lg_heat_pump_dynamic
+  displayed_name: LG Wärmepumpe
+  displayed_description: Heizkurve + PV-Überschuss
+  power: 0
+  controlled_device: lg_heat_pump
+  buffer_sensor: bufferTop
+  outdoor_sensor: air
+  heat_pump_mode: 1
+  outdoor_temp_cold_ref: -5
+  outdoor_temp_warm_ref: 18
+  design_supply_temp_max: 50
+  design_supply_temp_min: 25
+  pv_temp_boost_factor: 2
+  param_update_delay: 180
+  buffer_delta_supply: -2
+  disable_automatic_management: false
+  hardware_io_endpoint_mode: homeassistant
+  ha_base_url: https://ha.florianschleuss.de
+  ha_setpoint_webhook: SetHeatPumpReturnSetpoint
+  ha_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJiZGM3NTYwZDdhOGU0Nzc5YTY0ZjdkNDczNDU2M2E1NCIsImlhdCI6MTc2NDUyMDAyNSwiZXhwIjoyMDc5ODgwMDI1fQ.9lQ8F9MXl4p5G_Egdrf0ZxESGNTMRHC0IKlxKb0uKoM
+  max_active_time_seconds: 86400
+  min_active_time_seconds: 0
+  hysteresis_seconds: 0
+  re_hysteresis_seconds: 0
+  shutdown_time_seconds: 0
+  importance: 0
+  power_off_tolerance: 0
+  device_type: DynamicPowerSwitchable
+  house_supply_setpoint: 25.456521739130434
+  supply_gradient: 0.043478260869565216
+  pv_boost_temp: 0.0
+  heat_pump_return_setpoint: 25.456521739130434
+  heat_pump_heat_wait: false
+  last_param_update_ts: 1770376471.6177967
