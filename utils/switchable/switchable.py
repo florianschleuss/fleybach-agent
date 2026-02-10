@@ -1,14 +1,13 @@
+"""Switchable"""
+from __future__ import annotations
 from datetime import datetime, timedelta
 from enum import Enum
 import time
-from typing import Dict, List, Optional, TypeVar
+from typing import Dict, List, Optional
 
 from utils.delayTimer import DelayTimer
 from utils.event import Event, EventSeverity
 from utils.reason import ReasonFlow
-
-Switchable = TypeVar('Switchable')  # type: ignore
-Depender = TypeVar('Depender')  # type: ignore
 
 
 class DependencyType(Enum):
@@ -53,12 +52,12 @@ class TemperatureSafetyStepType(Enum):
 
 class TemperatureSafetyStep():
     def __init__(self,
-                 type: TemperatureSafetyStepType,
+                 t_s_s_type: TemperatureSafetyStepType,
                  value: float,
                  interval_seconds: int,
                  sensor_name: str,
                  end_value: Optional[float] = None):
-        self.type: TemperatureSafetyStepType = type
+        self.type: TemperatureSafetyStepType = t_s_s_type
         self.value: float = value
         self.end_value: Optional[float] = end_value
         self.interval_seconds: int = interval_seconds
@@ -71,28 +70,28 @@ class TemperatureSafetyStep():
     @classmethod
     def from_object(
             cls,
-            object: Dict
+            t_s_s_object: Dict
     ):
-        if 'type' not in object:
+        if 'type' not in t_s_s_object:
             raise Exception("No type given")
-        if 'value_degrees_c' not in object:
+        if 'value_degrees_c' not in t_s_s_object:
             raise Exception("No value given")
-        if 'interval_seconds' not in object:
+        if 'interval_seconds' not in t_s_s_object:
             raise Exception("No interval given")
-        if 'sensor_name' not in object:
+        if 'sensor_name' not in t_s_s_object:
             raise Exception("No sensor name given")
         tss = TemperatureSafetyStep(
-            value=object['value_degrees_c'],
-            interval_seconds=object['interval_seconds'],
-            sensor_name=object['sensor_name'],
-            type=TemperatureSafetyStepType(object['type'])
+            value=t_s_s_object['value_degrees_c'],
+            interval_seconds=t_s_s_object['interval_seconds'],
+            sensor_name=t_s_s_object['sensor_name'],
+            t_s_s_type=TemperatureSafetyStepType(t_s_s_object['type'])
         )
-        if 'duration_seconds' in object:
-            tss.duration_seconds = object['duration_seconds']
-        if 'alert_enabled' in object:
-            tss._alert_enabled = object['alert_enabled']
-        if 'end_value_degrees_c' in object:
-            tss.end_value = object['end_value_degrees_c']
+        if 'duration_seconds' in t_s_s_object:
+            tss.duration_seconds = t_s_s_object['duration_seconds']
+        if 'alert_enabled' in t_s_s_object:
+            tss._alert_enabled = t_s_s_object['alert_enabled']
+        if 'end_value_degrees_c' in t_s_s_object:
+            tss.end_value = t_s_s_object['end_value_degrees_c']
         return tss
 
     def to_dict(self) -> Dict:
@@ -152,7 +151,7 @@ class TemperatureSafety:
     def from_list(
             cls,
             list: List[Dict]
-    ):
+    ) -> Optional[TemperatureSafety]:
         if len(list) == 0:
             return
         ts: TemperatureSafety = TemperatureSafety()
@@ -177,7 +176,7 @@ class Switchable:
                  name: str,
                  displayed_name: str = '',
                  displayed_description: str = '',
-                 dependencies: List[Switchable] = [],
+                 dependencies: Optional[List[Switchable]] = None,
                  shutdown_time_seconds: int = 0,
                  max_active_time_seconds: int = 86400,  # One day
                  min_active_time_seconds: int = 0,
@@ -198,7 +197,7 @@ class Switchable:
         self._state: bool = False
 
         # Depedencies of SW. No activation without dependencies being active.
-        self._dependencies: List[Switchable] = dependencies
+        self._dependencies: List[Switchable] = dependencies or []
 
         self._dependers: List[Depender] = []
 
@@ -249,7 +248,7 @@ class Switchable:
         """
         if self._last_switch > (time.time() - self.re_hysteresis_seconds):
             return True
-        return any([d.re_hysteresis_timeout() for d in self._dependencies])
+        return any(d.re_hysteresis_timeout() for d in self._dependencies)
 
     def hysteresis_timeout(self) -> bool:
         """
@@ -300,7 +299,7 @@ class Switchable:
             time_delta = self.shutdown_time_seconds if timer_seconds is None else timer_seconds
             if reason_flow is not None:
                 reason_flow.add_reason(
-                    f"Automatic shutdown at {(datetime.now() + timedelta(seconds=time_delta)).strftime('%d.%m.%Y %H:%M:%S')} UTC")
+                    f"Automatic shutdown at {(datetime.now() + timedelta(seconds=time_delta)).strftime('%d.%m.%Y %H:%M:%S')}")
                 dtrf = reason_flow.split(
                     "Timer based shutdown initiated",
                     pause_auto_store_seconds=time_delta,
@@ -349,7 +348,7 @@ class Switchable:
             dtrf = None
             if reason_flow is not None:
                 reason_flow.add_reason(
-                    f"Automatic restart at {(datetime.now() + timedelta(seconds=timer_seconds)).strftime('%d.%m.%Y %H:%M:%S')} UTC")
+                    f"Automatic restart at {(datetime.now() + timedelta(seconds=timer_seconds)).strftime('%d.%m.%Y %H:%M:%S')}")
                 dtrf = reason_flow.split(
                     "Timer based restart initiated",
                     pause_auto_store_seconds=timer_seconds,
@@ -410,6 +409,9 @@ class Switchable:
         return rest_time
 
     def to_dict(self, full=False) -> Dict:
+        """
+        Creates a dict version of the object
+        """
         device_dict = {'name': self.name,
                        'state': self.state,
                        'max_active_time_seconds': self.max_active_time_seconds,

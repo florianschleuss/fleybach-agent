@@ -1,23 +1,27 @@
+"""Power Switchable"""
+from __future__ import annotations
 from enum import Enum
 import json
-from typing import Dict, List, Optional, TypeVar
+from typing import Dict, List, Optional
 
 import requests
-from requests.exceptions import ConnectionError
 from utils.event import EventSeverity
 from utils.reason import ReasonFlow
 from utils.switchable.switchable import Switchable, TemperatureSafety
 
 import RPi.GPIO as GPIO
-GPIO.setwarnings(False)  # type: ignore
 
-PowerSwitchable = TypeVar('PowerSwitchable')  # type: ignore
-LocalDevice = TypeVar('LocalDevice')  # type: ignore
-RemoteDevice = TypeVar('RemoteDevice')  # type: ignore
-RemoteDeviceType = TypeVar('RemoteDeviceType')  # type: ignore
-HomeAssistantDevice = TypeVar('HomeAssistantDevice')  # type: ignore
-HomeAssistantDeviceType = TypeVar('HomeAssistantDeviceType')  # type: ignore
-GPIO.setmode(GPIO.BCM)  # type: ignore
+
+
+# PowerSwitchable = TypeVar('PowerSwitchable')  # type: ignore
+# LocalDevice = TypeVar('LocalDevice')  # type: ignore
+# RemoteDevice = TypeVar('RemoteDevice')  # type: ignore
+# RemoteDeviceType = TypeVar('RemoteDeviceType')  # type: ignore
+# HomeAssistantDevice = TypeVar('HomeAssistantDevice')  # type: ignore
+# HomeAssistantDeviceType = TypeVar('HomeAssistantDeviceType')  # type: ignore
+def init_gpio() -> None:
+    GPIO.setwarnings(False)
+    GPIO.setmode(GPIO.BCM)
 
 
 class PowerSwitchable(Switchable):
@@ -25,20 +29,23 @@ class PowerSwitchable(Switchable):
                  power: int,
                  power_off_tolerance: int = 0,
                  *args,
-                 **kwarags
+                 **kwargs
                  ) -> None:
-        super().__init__(*args, **kwarags)
+        super().__init__(*args, **kwargs)
 
         # Power consumption of this particular SW
         self.power: int = power
 
-        # Power that may be bought before the device is allowed
-        # to be turned off automatically
+        # Maximum power deficit (W) tolerated before this
+        # device may be turned off automatically
         self.power_off_tolerance: int = power_off_tolerance
         return
 
     @property
     def power_all(self):
+        """
+        Sums power consumption of self and all disabled dependencies
+        """
         power_all: int = self.power
         for d in self._dependencies:
             if not d.state and isinstance(d, PowerSwitchable):
@@ -46,7 +53,7 @@ class PowerSwitchable(Switchable):
         return power_all
 
     def to_dict(self, full=False) -> Dict:
-        device_dict = super().to_dict(full=full)
+        device_dict = super().to_dict(full=full)  # type: ignore[attr-defined]
         device_dict['power'] = self.power
         device_dict['power_all'] = self.power_all
         device_dict['power_off_tolerance'] = self.power_off_tolerance
@@ -57,13 +64,13 @@ class LocalDevice(PowerSwitchable):
     def __init__(self,
                  gpio: int,
                  *args,
-                 **kwarags) -> None:
-        super().__init__(*args, **kwarags)
-
+                 **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        init_gpio()
         # GPIO pin to which the device is connected
         self._gpio: int = gpio
-        GPIO.setup(self._gpio, GPIO.OUT)  # type: ignore
-        GPIO.output(gpio, GPIO.HIGH)  # type: ignore
+        GPIO.setup(self._gpio, GPIO.OUT)
+        GPIO.output(self._gpio, GPIO.HIGH)
 
     @classmethod
     def from_object(
@@ -138,12 +145,12 @@ class RemoteDeviceType(Enum):
     TASMOTA = 'tasmota'
 
     @classmethod
-    def from_str(cls, str: str) -> RemoteDeviceType:
-        if 'sonoff' in str.lower():
+    def from_str(cls, strng: str) -> RemoteDeviceType:
+        if 'sonoff' in strng.lower():
             return cls.SONOFF
-        elif 'tasmota' in str.lower():
+        elif 'tasmota' in strng.lower():
             return cls.TASMOTA
-        raise Exception("No matching device type given")
+        return cls.DEFAULT
 
 
 class RemoteDevice(PowerSwitchable):
@@ -151,9 +158,9 @@ class RemoteDevice(PowerSwitchable):
                  host: str,
                  device_type: RemoteDeviceType,
                  *args,
-                 **kwarags
+                 **kwargs
                  ) -> None:
-        super().__init__(*args, **kwarags)
+        super().__init__(*args, **kwargs)
 
         self._host: str = host
 
@@ -182,11 +189,11 @@ class RemoteDevice(PowerSwitchable):
                 device_type=RemoteDeviceType.from_str(object['device_type']))
         else:
             device: RemoteDevice = updating_device
-        device: RemoteDevice = cls(
-            name=object['name'],
-            power=object['power'],
-            host=object['host'],
-            device_type=RemoteDeviceType.from_str(object['device_type']))
+        # device: RemoteDevice = cls(
+        #     name=object['name'],
+        #     power=object['power'],
+        #     host=object['host'],
+        #     device_type=RemoteDeviceType.from_str(object['device_type']))
         if 'displayed_name' in object:
             device.displayed_name = object['displayed_name']
         if 'displayed_description' in object:
@@ -235,16 +242,16 @@ class RemoteDevice(PowerSwitchable):
                 url_params = "control?cmd=GPIO,12,0"
         elif self._device_type == RemoteDeviceType.TASMOTA:
             if state:
-                url_params = "cm?cmnd=Power%20on"
+                url_params = "cm?cmnd=Power%20On"
             else:
-                url_params = "cm?cmnd=Power%20off"
+                url_params = "cm?cmnd=Power%20Off"
 
         try:
             r: requests.Response = requests.get(
-                f"http://{self._host}/{url_params}")
-            if r.status_code == 200:
+                f"http://{self._host}/{url_params}", timeout=5)
+            if r.ok:
                 return True
-        except ConnectionError as e:
+        except requests.exceptions.ConnectionError as e:
             if reason_flow is not None:
                 reason_flow.add_reason(
                     f"Connection error for {self.name} to host {self._host} trying to switch to '{state}'\n{e}")
@@ -256,7 +263,7 @@ class RemoteDevice(PowerSwitchable):
             reason_flow.to_event(EventSeverity.IMPORTANT)
         return False
 
-# TODO: Real Power Concsumption from LG Systems
+# TODO: Real Power Consumption from LG Systems
 
 
 class HomeAssistantDeviceType(Enum):
@@ -279,9 +286,9 @@ class HomeAssistantDevice(PowerSwitchable):
                  entity_id: str,
                  device_type: HomeAssistantDeviceType,
                  *args,
-                 **kwarags
+                 **kwargs
                  ) -> None:
-        super().__init__(*args, **kwarags)
+        super().__init__(*args, **kwargs)
 
         self._entity_id: str = entity_id
 
@@ -310,11 +317,11 @@ class HomeAssistantDevice(PowerSwitchable):
                 device_type=HomeAssistantDeviceType.from_str(object['device_type']))
         else:
             device: HomeAssistantDevice = updating_device
-        device: HomeAssistantDevice = cls(
-            name=object['name'],
-            power=object['power'],
-            entity_id=object['entity_id'],
-            device_type=HomeAssistantDeviceType.from_str(object['device_type']))
+        # device: HomeAssistantDevice = cls(
+        #     name=object['name'],
+        #     power=object['power'],
+        #     entity_id=object['entity_id'],
+        #     device_type=HomeAssistantDeviceType.from_str(object['device_type']))
         if 'displayed_name' in object:
             device.displayed_name = object['displayed_name']
         if 'displayed_description' in object:
@@ -378,11 +385,11 @@ class HomeAssistantDevice(PowerSwitchable):
             }
             r: requests.Response = requests.post(
                 f"http://192.168.178.224:8123/api/webhook/{webhook_name}",
-                headers=headers, data=json.dumps(payload)
+                headers=headers, data=json.dumps(payload), timeout=5
             )
             if r.status_code == 200:
                 return True
-        except ConnectionError as e:
+        except requests.exceptions.ConnectionError as e:
             if reason_flow is not None:
                 reason_flow.add_reason(
                     f"Connection error for {self.name} to Homeassistant for '{self._entity_id}' trying to switch to '{state}'\n{e}")
