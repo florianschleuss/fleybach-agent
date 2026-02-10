@@ -39,7 +39,7 @@ class Token:
 
 def get_jwt(auth_url: str, domain: str, secret: str) -> Token:
     try:
-        jwt = r.post(f'http://{auth_url}/customer/login', json={
+        jwt = r.post(f'https://{auth_url}/customer/login', json={
             "domain": domain,
             "secret": secret
         })

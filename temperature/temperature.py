@@ -42,13 +42,13 @@ def update_sensor(id: str, value: Union[int, float]) -> bool:
         return False
     value = value + sensor.offset
     try:
-        patch = r.patch(f'http://{AUTH_URL}/sensor/sensors/{id}?customer_id={jwt.token.customer_id}', json={
+        patch = r.patch(f'https://{AUTH_URL}/sensor/sensors/{id}?customer_id={jwt.token.customer_id}', json={
             'value': value
         }, headers={'x-access-token': jwt.token._token})
         print("Patch", flush=True)
         print(patch.status_code, flush=True)
         if patch.status_code == 404:
-            post = r.post(f'http://{AUTH_URL}/sensor/sensors?customer_id={jwt.token.customer_id}', json={
+            post = r.post(f'https://{AUTH_URL}/sensor/sensors?customer_id={jwt.token.customer_id}', json={
                 'id': sensor.device_id,
                 'name': sensor.name,
                 'value': value,
@@ -68,7 +68,7 @@ def batch_update_sensor(sensors_list: List[Dict]):
         return
     jwt.v()
     try:
-        post = r.patch(f'http://{AUTH_URL}/sensor/sensors?customer_id={jwt.token.customer_id}', json={
+        post = r.patch(f'https://{AUTH_URL}/sensor/sensors?customer_id={jwt.token.customer_id}', json={
             'sensors': sensors_list
         }, headers={'x-access-token': jwt.token._token})
     except r.exceptions.ConnectionError:
@@ -82,7 +82,7 @@ def batch_update_sensor(sensors_list: List[Dict]):
 def make_history(names: List):
     jwt.v()
     try:
-        post = r.post(f'http://{AUTH_URL}/sensor/sensors/names/history?customer_id={jwt.token.customer_id}', json={
+        post = r.post(f'https://{AUTH_URL}/sensor/sensors/names/history?customer_id={jwt.token.customer_id}', json={
             'names': names
         }, headers={'x-access-token': jwt.token._token})
     except r.exceptions.ConnectionError:
