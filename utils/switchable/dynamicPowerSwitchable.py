@@ -5,6 +5,7 @@ from enum import Enum
 import json
 import time
 from typing import Dict, Optional, List, Any
+from datetime import datetime
 
 import requests
 
@@ -67,6 +68,7 @@ class DynamicPowerSwitchable(PowerSwitchable):
                  pv_temp_boost_factor: float = 1.0,
                  param_update_delay: int = 60,
                  buffer_delta_supply: float = 5.0,
+                 night_setback_delta: float = 0.0,
                  hardware_io_endpoint_mode: HardwareIoEndpointMode = HardwareIoEndpointMode.NONE,
                  ha_base_url: Optional[str] = None,
                  ha_setpoint_webhook: Optional[str] = None,
@@ -89,6 +91,7 @@ class DynamicPowerSwitchable(PowerSwitchable):
         self.pv_temp_boost_factor: float = pv_temp_boost_factor
         self.param_update_delay: int = param_update_delay
         self.buffer_delta_supply: float = buffer_delta_supply
+        self.night_setback_delta: float = night_setback_delta
 
         # IO endpoint config
         self.hardware_io_endpoint_mode: HardwareIoEndpointMode = hardware_io_endpoint_mode
@@ -144,6 +147,7 @@ class DynamicPowerSwitchable(PowerSwitchable):
                 pv_temp_boost_factor=obj.get("pv_temp_boost_factor", 1.0),
                 param_update_delay=obj.get("param_update_delay", 60),
                 buffer_delta_supply=obj.get("buffer_delta_supply", 5.0),
+                night_setback_delta=obj.get("night_setback_delta", 0.0),
                 hardware_io_endpoint_mode=hardware_mode,
                 ha_base_url=obj.get("ha_base_url"),
                 ha_setpoint_webhook=obj.get("ha_setpoint_webhook"),
@@ -177,6 +181,9 @@ class DynamicPowerSwitchable(PowerSwitchable):
             )
             device.buffer_delta_supply = obj.get(
                 "buffer_delta_supply", device.buffer_delta_supply
+            )
+            device.night_setback_delta = obj.get(
+                "night_setback_delta", device.night_setback_delta
             )
             device.hardware_io_endpoint_mode = hardware_mode
             device.ha_base_url = obj.get("ha_base_url", device.ha_base_url)
@@ -214,6 +221,49 @@ class DynamicPowerSwitchable(PowerSwitchable):
     @wp_on.setter
     def wp_on(self, v: int) -> None:
         self.heat_pump_mode = HeatPumpMode.from_int(v)
+
+    # ---------- night setback ----------
+
+    def _is_night_setback_window(self, now_ts: float) -> bool:
+        hour = datetime.fromtimestamp(now_ts).hour
+        return hour >= 21 or hour < 5 # UTC
+
+    def _apply_night_setback_delta(self,
+                                  now_ts: float,
+                                  *,
+                                  reason_flow: Optional[ReasonFlow] = None) -> None:
+        dt = datetime.fromtimestamp(now_ts)
+        hour = dt.hour
+        minute = dt.minute
+        time_str = f"{hour:02d}:{minute:02d}"
+        in_window = self._is_night_setback_window(now_ts)
+
+        if reason_flow is not None:
+            if self.night_setback_delta <= 0.0:
+                reason_flow.add_reason(
+                    f"NightSetback: INACTIVE (night_setback_delta={self.night_setback_delta:.2f}°C)"
+                )
+            elif not in_window:
+                reason_flow.add_reason(
+                    f"NightSetback: INACTIVE (outside window 21-5 UTC, time={time_str}UTC)"
+                )
+
+        if self.night_setback_delta <= 0.0:
+            return
+        if not self._is_night_setback_window(now_ts):
+            return
+
+        old = self.house_supply_setpoint
+        self.house_supply_setpoint = max(
+            self.design_supply_temp_min,
+            self.house_supply_setpoint - self.night_setback_delta
+        )
+
+        if reason_flow is not None:
+            reason_flow.add_reason(
+                f"Nachtabsenkung aktiv (21-5 UTC): VLHausSoll {old:.2f}°C -> "
+                f"{self.house_supply_setpoint:.2f}°C (Δ -{self.night_setback_delta:.2f}°C)"
+            )
 
     # ---------- core control logic ----------
 
@@ -321,6 +371,16 @@ class DynamicPowerSwitchable(PowerSwitchable):
 
         # 1) heating curve
         self.house_supply_setpoint = self._compute_house_supply_setpoint(outdoor_temp)
+
+        if reason_flow is None:
+            reason_flow = ReasonFlow(
+                initiator=user,
+                name=f"DynamicPowerSwitchable control update for {self.name}"
+            )
+
+        # 1b) night setback delta (22-6)
+        self._apply_night_setback_delta(now_ts, reason_flow=reason_flow)
+
         # 2) PV boost
         self.pv_boost_temp = self._compute_pv_boost_temp(grid_power_balance)
         # 3) RL_WPSoll
@@ -362,11 +422,7 @@ class DynamicPowerSwitchable(PowerSwitchable):
         enough_time_passed = (now_ts - self._last_param_update_ts) >= self.param_update_delay
         should_send = has_changed and enough_time_passed
 
-        if reason_flow is None:
-            reason_flow = ReasonFlow(
-                initiator=user,
-                name=f"DynamicPowerSwitchable control update for {self.name}"
-            )
+
 
         reason_flow.add_reason(
             f"Computed: VLHausSoll={self.house_supply_setpoint:.2f}°C, "
@@ -389,7 +445,7 @@ class DynamicPowerSwitchable(PowerSwitchable):
             # delegate to hardware-specific IO (HA, etc.)
             self._set_hardware_io(self.state, reason_flow=reason_flow)
 
-            reason_flow.to_event(EventSeverity.DEBUG)
+            reason_flow.to_event(EventSeverity.INFO)
         else:
             reason_flow.add_reason("No parameter send (no change or hysteresis not passed).")
             reason_flow.to_event(EventSeverity.DEBUG)
@@ -443,6 +499,7 @@ class DynamicPowerSwitchable(PowerSwitchable):
             "pv_temp_boost_factor": self.pv_temp_boost_factor,
             "param_update_delay": self.param_update_delay,
             "buffer_delta_supply": self.buffer_delta_supply,
+            "night_setback_delta": self.night_setback_delta,
             "house_supply_setpoint": self.house_supply_setpoint,
             "supply_gradient": self.supply_gradient,
             "pv_boost_temp": self.pv_boost_temp,

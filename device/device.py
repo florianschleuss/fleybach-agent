@@ -90,7 +90,7 @@ class DeviceController:
         self._avrg_power_consumtion: Dict[int, float] = {}
 
         # The span in sec over which the power avrg is calculated
-        self._avrg_power_timespan = 30
+        self._avrg_power_timespan = 180
 
         # Last time the deadline_check has run
         self._deadline_check_last_run = 0
@@ -112,7 +112,7 @@ class DeviceController:
                 with optional filtering and sorting direction.
         """
         devices = [device for device in self._devices.values()
-                   if device._state == state 
+                   if device._state == state
                    and not isinstance(device, DynamicPowerSwitchable)
                    and not device.disable_automatic_management]
         devices = sorted(
@@ -133,7 +133,7 @@ class DeviceController:
                                     reason_flow: Optional[ReasonFlow] = None) -> None:
         """
         Checks if all devices have fullfilled their min_active_time.
-        If not activates them for the needed amount of time.        
+        If not activates them for the needed amount of time.
         """
         # Creat info-event for runtime summary of day
         for d in self._devices.values():
@@ -296,8 +296,8 @@ class DeviceController:
                     'dependencies', [])],
                 updating_device=devices.get(d['name'], None))  # type: ignore
             new_devices[hd.name] = hd
-    
-    
+
+
         # Dynamic devices
         for d in device_config.get('dynamic_devices', []):
             dyn: DynamicPowerSwitchable = DynamicPowerSwitchable.from_object(
@@ -372,7 +372,7 @@ class DeviceController:
             hour=target_time.hour, minute=target_time.minute, second=target_time.second, microsecond=0)
         end_dt = target_dt + datetime.timedelta(hours=x_hours)
         return target_dt <= now <= end_dt
-    
+
     def dynamic_tick(self,
                      grid_power_balance: float,
                      temperatures: Dict[str, float]) -> None:
@@ -786,7 +786,8 @@ def handle_task_event(data: dict):
                            'design_supply_temp_max',
                            'design_supply_temp_min',
                            'pv_temp_boost_factor',
-                           'buffer_delta_supply']
+                           'buffer_delta_supply',
+                           'night_setback_delta']
         device = dc.get_device_by_name(task.action_args['deviceName'])
         updates = task.action_args['updates']
         for u in updates:
