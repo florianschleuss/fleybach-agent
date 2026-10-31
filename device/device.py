@@ -804,6 +804,12 @@ def handle_task_event(data: dict):
 
     return ReturnObject(status_code=422, error_code='failedAction', message="The action was not successful. Refer to logs").to_dict()
 
+def socket_auth():
+    # python-socketio calls this again for every reconnection.
+    jwt.v()
+    return {'token': jwt.token._token, 'customer_domain': CUSTOMER_DOMAIN}
+
+
 MAX_RETRIES = 10
 BASE_DELAY = 2       # seconds
 MAX_DELAY = 120      # maximum delay between attempts
@@ -817,6 +823,7 @@ if __name__ == "__main__":
 
             sio.connect(
                 target_url,
+                auth=socket_auth,
                 transports=['websocket'],
                 socketio_path="socket/socket.io",
                 wait=False

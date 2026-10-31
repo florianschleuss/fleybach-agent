@@ -1,5 +1,6 @@
 from datetime import datetime
 from functools import wraps
+from threading import RLock
 from typing import Union
 
 import requests as r
@@ -42,9 +43,10 @@ def get_jwt(auth_url: str, domain: str, secret: str) -> Token:
         jwt = r.post(f'https://{auth_url}/customer/login', json={
             "domain": domain,
             "secret": secret
-        })
+        }, timeout=(5, 15))
+        jwt.raise_for_status()
         return Token(jwt.json().get('data'))
-    except (r.exceptions.ConnectionError, r.exceptions.JSONDecodeError):
+    except (r.exceptions.RequestException, ValueError, TypeError, KeyError):
         return Token(None, exp=0)
 
 
@@ -54,8 +56,11 @@ class JWTValidator:
         self.domain = domain
         self.secret = secret
         self.token: Token = Token(None, exp=0)
+        self._lock = RLock()
 
     def v(self):
-        if self.token.exp < datetime.now().timestamp():
-            self.token = get_jwt(self.auth_url, self.domain, self.secret)
-            return
+        with self._lock:
+            if self.token.exp < datetime.now().timestamp() + 60:
+                refreshed = get_jwt(self.auth_url, self.domain, self.secret)
+                if refreshed._token:
+                    self.token = refreshed
