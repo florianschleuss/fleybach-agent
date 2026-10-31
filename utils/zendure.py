@@ -86,10 +86,10 @@ def normalize(report, now=None):
         serial = identifier(report.get('deviceId'))
         kind, model = 'smart_meter', 'zendure-grid-meter'
         add(report, 'total_power', 'grid_power', 'W', 'power', -1000000, 1000000)
-        # Preserve vendor-reported phase values; do not infer active/apparent power.
+        # Phase readings are watts, confirmed by the installation owner.
         for phase in 'abc':
             add(report, phase+'_aprt_power', 'phase_'+phase+'_reported_power',
-                '', 'reported_power', -1000000, 1000000)
+                'W', 'reported_power', -1000000, 1000000)
     else:
         raise ValueError('Unsupported Zendure device report')
     if len(metrics) > 128:
