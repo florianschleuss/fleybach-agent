@@ -1,4 +1,27 @@
 services:
+  # Optional, read-only Zendure telemetry. Existing services are unaffected.
+  zendure:
+    profiles: ["zendure"]
+    container_name: zendure
+    restart: unless-stopped
+    build: ./zendure
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:size=16m"]
+    volumes:
+      - ./utils:/usr/src/zendure/utils:ro
+      - ./zendure/config.json:/config/zendure.json:ro
+    environment:
+      - CUSTOMER_DOMAIN
+      - CUSTOMER_SECRET
+      - AUTH_URL
+      - PYTHONDONTWRITEBYTECODE=1
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
   # DS18B12 sensor read out
   temperature:
     container_name: temperature

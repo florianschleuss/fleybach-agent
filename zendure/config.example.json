@@ -1,0 +1,10 @@
+{
+  "pollIntervalSeconds": 10,
+  "requestTimeoutSeconds": 5,
+  "staleAfterSeconds": 60,
+  "sources": [
+    {"enabled": false, "kind": "smart_meter", "host": "192.168.178.147", "expectedSerial": "REPLACE_METER_DEVICE_ID", "label": "Netzzähler"},
+    {"enabled": false, "kind": "battery", "host": "192.168.178.129", "expectedSerial": "REPLACE_BATTERY_SERIAL", "label": "Batterie 1"},
+    {"enabled": false, "kind": "battery", "host": "192.168.178.122", "expectedSerial": "REPLACE_SECOND_SERIAL", "label": "Batterie 2"}
+  ]
+}
