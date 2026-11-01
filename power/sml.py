@@ -13,6 +13,7 @@ class EnergyData:
 
     def __init__(self) -> None:
         """Initialize EnergyData."""
+        self.sampled_at = time.time()
         self.buy: float = 0
         self.sell: float = 0
         self.p_tot: float = 0
@@ -109,6 +110,10 @@ class SMLSerialParser:
             energy.p_l2 = self.signed_int(message[266:274]) * (10 ** -2)
             energy.p_l3 = self.signed_int(message[290:298]) * (10 ** -2)
             self.energy_data = energy
+            from utils.site_store import publish
+            for name,value in energy.to_dict().items():
+                publish('power:'+name,name,'kWh' if name in ('bought','sold') else 'W',
+                        value,energy.sampled_at,'power')
             self.running = False
 
         self.input_data = b""

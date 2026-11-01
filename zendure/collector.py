@@ -126,6 +126,11 @@ class Collector:
             start = time.monotonic()
             try:
                 report, parsed = read_report(source, self.config['timeout'], session)
+                from utils.site_store import publish
+                for key, metric in parsed['metrics'].items():
+                    publish(parsed['id']+':'+key,key,metric['unit'],metric['value'],
+                            parsed['sampledAt'] if 'sampledAt' in parsed else report['timestamp'],
+                            'zendure',label=source['label']+' · '+key)
                 result = self.upload(session, {'report': report, 'label': source['label'],
                                               'staleAfterSeconds': self.config['stale']})
                 if failed or time.monotonic()-last_success >= 300 or once:

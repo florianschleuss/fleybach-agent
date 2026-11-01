@@ -23,7 +23,7 @@ class Sensor:
         self.enabled: bool = enabled
         self.serial_connected: bool = serial_connected
         self.value: float = 0
-        self.last_updated: float = time.time()
+        self.last_updated: float = 0
         self.upper_bound: int = upper_bound
         self.lower_bound: int = lower_bound
         self.disconnected_cycles: int = 0

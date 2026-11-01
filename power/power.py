@@ -158,6 +158,9 @@ def get_inverter_data(name: str) -> Optional[Dict]:
         return {'value': 0, 'unit': config_register.unit, 'type': config_register.type}
     value = config_register.transform_value(register.get_value())
 
+    from utils.site_store import publish
+    publish('power:'+config_register.name,config_register.name,config_register.unit,
+            value,time.time(),'power')
     return {'value': value, 'unit': config_register.unit, 'type': config_register.type}
 
 

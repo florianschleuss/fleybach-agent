@@ -1,0 +1,36 @@
+services:
+  site:
+    container_name: site
+    build: ./site
+    restart: unless-stopped
+    volumes:
+      - ./utils:/app/utils:ro
+      - site-state:/state
+    environment:
+      - CUSTOMER_DOMAIN
+      - CUSTOMER_SECRET
+      - AUTH_URL
+      - SITE_STATE_PATH=/state/site.sqlite3
+  power:
+    volumes:
+      - site-state:/state
+    environment:
+      - SITE_STATE_PATH=/state/site.sqlite3
+  temperature:
+    volumes:
+      - site-state:/state
+    environment:
+      - SITE_STATE_PATH=/state/site.sqlite3
+  device:
+    volumes:
+      - site-state:/state
+    environment:
+      - SITE_STATE_PATH=/state/site.sqlite3
+      - SITE_LOCAL_CONTROL=${SITE_LOCAL_CONTROL:-0}
+  zendure:
+    volumes:
+      - site-state:/state
+    environment:
+      - SITE_STATE_PATH=/state/site.sqlite3
+volumes:
+  site-state:

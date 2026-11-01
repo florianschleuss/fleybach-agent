@@ -593,6 +593,9 @@ def get_power_consumption() -> float:
     :raises: TimeoutError
     """
     global local_power_component
+    if os.environ.get('SITE_LOCAL_CONTROL') == '1':
+        from utils.site_store import role_value
+        return float(role_value('grid.main', 'total', 'power'))
     if local_power_component:
         get = requests.get(url="http://power/power", timeout=10)
 
@@ -630,6 +633,9 @@ def get_power_consumption() -> float:
 
 
 def get_temperatures() -> Dict[str, float]:
+    if os.environ.get('SITE_LOCAL_CONTROL') == '1':
+        from utils.site_store import temperatures
+        return temperatures()
     global local_temperature_component
     if local_temperature_component:
         # TODO prioritize local component
@@ -859,8 +865,13 @@ if __name__ == "__main__":
     while True:
         start: float = datetime.datetime.now().timestamp()
 
-        power: float
-        temperatures: Dict[str, float]
+        power = None
+        temperatures = {}
+        if os.environ.get('SITE_STATE_PATH'):
+            from utils.site_store import publish
+            for device in dc._devices.values():
+                publish('device:'+device.name,device.name,'',int(device.state),time.time(),
+                        'device',kind='device',label=getattr(device,'displayed_name',device.name))
         try:
             power = get_power_consumption()
             dc.tick(power)
@@ -884,7 +895,8 @@ if __name__ == "__main__":
                            'Temperature readings could not be retrieved from the API', [type(e).__name__])
 
         try:
-            dc.dynamic_tick(grid_power_balance=power, temperatures=temperatures)
+            if power is not None:
+                dc.dynamic_tick(grid_power_balance=power, temperatures=temperatures)
         except Exception as exc:
             Event("Error in dc.dynamic_tick",
                   details=[str(exc)],
