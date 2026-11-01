@@ -37,6 +37,8 @@ def publish(identifier, name, unit, value, sampled_at, source, kind='measurement
     if not os.environ.get('SITE_STATE_PATH'): return
     if value is not None and (isinstance(value,bool) or not isinstance(value,(int,float)) or not math.isfinite(value)):
         return
+    from utils.site_catalog import default_label
+    if kind=='measurement':extra['label']=default_label(name,extra.get('label'))
     item=dict(id=identifier,name=name,unit=unit,value=value,sampledAt=sampled_at,
               receivedAt=time.time(),source=source,kind=kind,**extra)
     try:

@@ -134,7 +134,8 @@ class Event:
             elif self.event_severity == EventSeverity.CRITICAL:
                 logger.critical(self.to_string(details=True))
             if self.event_severity in [EventSeverity.INFO, EventSeverity.NEUTRAL, EventSeverity.IMPORTANT, EventSeverity.CRITICAL]:
-                self._stored = self._post_event()
+                key = (self.initiator, self.fault_fields.get('errorCode'), self.fault_fields.get('subjectId')) if self.fault_fields else id(self)
+                self._stored = _cloud_events().submit(key, self._post_event, max_age=86400)
                 return self._stored
         self._stored = True
         return True
@@ -164,3 +165,15 @@ class Event:
         except requests.exceptions.RequestException:
             pass
         return False
+
+
+_event_worker = None
+from threading import Lock
+_worker_lock = Lock()
+def _cloud_events():
+    global _event_worker
+    with _worker_lock:
+        if _event_worker is None:
+            from utils.cloud_worker import CloudWorker
+            _event_worker = CloudWorker('event-upload', capacity=512)
+        return _event_worker

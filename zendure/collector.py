@@ -120,6 +120,15 @@ class Collector:
     def run_source(self, source, once=False):
         session = requests.Session()
         session.trust_env = False
+        from utils.cloud_worker import CloudWorker
+        cloud_session = requests.Session()
+        cloud_session.trust_env = False
+        from utils.faults import FaultReporter
+        upload_faults = FaultReporter('Zendure Component')
+        def status(failed):
+            upload_faults.observe('CLOUD_UPLOAD', source['expectedSerial'], failed,
+                'Cloud upload unavailable; local acquisition continues' if failed else 'Cloud upload restored')
+        worker = None if once else CloudWorker('zendure-upload-'+source['label'], capacity=1, observer=status)
         last_success = 0
         failed = False
         while True:
@@ -131,8 +140,14 @@ class Collector:
                     publish(parsed['id']+':'+key,key,metric['unit'],metric['value'],
                             parsed['sampledAt'] if 'sampledAt' in parsed else report['timestamp'],
                             'zendure',label=source['label']+' · '+key)
-                result = self.upload(session, {'report': report, 'label': source['label'],
-                                              'staleAfterSeconds': self.config['stale']})
+                payload = {'report': report, 'label': source['label'],
+                           'staleAfterSeconds': self.config['stale']}
+                if once:
+                    result = self.upload(cloud_session, payload)
+                else:
+                    worker.submit('report', lambda data=payload: self.upload(cloud_session, data),
+                                  max_age=self.config['stale'])
+                    result = {'accepted': 'queued'}
                 if failed or time.monotonic()-last_success >= 300 or once:
                     log.info('%s: %s, %d metrics, accepted=%s', source['label'], parsed['model'],
                              len(parsed['metrics']), result['accepted'])

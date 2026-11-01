@@ -22,6 +22,16 @@ from utils.sensor import ModbusRegister, Sensor, SensorConfig
 
 logger = get_module_logger()
 
+from utils.cloud_worker import CloudWorker
+from utils.sensor_upload import SensorUploader
+from utils.faults import FaultReporter
+upload_faults = FaultReporter("Power Component")
+def cloud_status(failed):
+    upload_faults.observe('CLOUD_UPLOAD', 'sensors', failed,
+        'Cloud upload unavailable; local acquisition continues' if failed else 'Cloud upload restored')
+cloud_upload = CloudWorker('power-upload', capacity=1, observer=cloud_status)
+
+
 REFRESH_TIME_SECONDS = 10
 
 CUSTOMER_DOMAIN = os.environ.get('CUSTOMER_DOMAIN', "default")
@@ -31,6 +41,7 @@ address = os.environ.get('SMA_MODBUS_IP', "")
 port = int(os.environ.get('SMA_MODBUS_PORT', 502))
 
 jwt: JWTValidator = JWTValidator(AUTH_URL, CUSTOMER_DOMAIN, CUSTOMER_SECRET)
+uploader = SensorUploader(jwt, AUTH_URL)
 
 with open('sma/smaRegisters.json', encoding="utf-8") as config_file:
     register_config: List[ModbusRegister] = [
@@ -65,7 +76,7 @@ def update_sensor(id: str, name: str, value: Union[int, float], unit: str, type:
     try:
         patch = r.patch(f'https://{AUTH_URL}/sensor/sensors/{id}?customer_id={jwt.token.customer_id}', json={
             'value': value
-        }, headers={'x-access-token': jwt.token._token})
+        }, headers={'x-access-token': jwt.token._token}, timeout=(3, 8))
         if patch.status_code == 404:
             post = r.post(f'https://{AUTH_URL}/sensor/sensors?customer_id={jwt.token.customer_id}', json={
                 'id': id,
@@ -73,9 +84,9 @@ def update_sensor(id: str, name: str, value: Union[int, float], unit: str, type:
                 'value': value,
                 'unit': unit,
                 'type': type
-            }, headers={'x-access-token': jwt.token._token})
+            }, headers={'x-access-token': jwt.token._token}, timeout=(3, 8))
         sensor.present_in_database = True
-    except r.exceptions.ConnectionError as e:
+    except r.exceptions.RequestException as e:
         Event("Error while update_sensor()",
               details=[str(e)],
               initiator='Power Component',
@@ -94,8 +105,8 @@ def batch_update_sensor(sensors_list: List[Dict]):
     try:
         post = r.patch(f'https://{AUTH_URL}/sensor/sensors?customer_id={jwt.token.customer_id}', json={
             'sensors': sensors_list
-        }, headers={'x-access-token': jwt.token._token})
-    except r.exceptions.ConnectionError as e:
+        }, headers={'x-access-token': jwt.token._token}, timeout=(3, 8))
+    except r.exceptions.RequestException as e:
         for update_sensor in sensors_list:
             if (sensor := config.get_sensor(update_sensor['id'])) is None:
                 return False
@@ -190,42 +201,41 @@ def check_routines():
     return
 
 
+def upload_snapshot(readings):
+    if uploader.upload(readings):
+        check_routines()
+        return True
+    return False
+
+
 def update_loop() -> None:
     global sml_parser
     while True:
-        start = datetime.now().timestamp()
-        sensors = []
-        for sensor in config.sensors:
-            if not sensor.enabled:
-                continue
-            if sensor.on_timeout():
-                continue
-            if (data := get_inverter_data(sensor.name)) is None:
-                continue
-            if sensor.present_in_database:
-                sensors.append(
-                    {'id': sensor.device_id, 'value': data['value'], 'name': sensor.name})
+        start = time.monotonic()
+        try:
+            readings = []
+            for sensor in config.sensors:
+                if not sensor.enabled or sensor.on_timeout():
+                    continue
+                data = get_inverter_data(sensor.name)
+                if data is not None:
+                    readings.append(dict(id=sensor.device_id, name=sensor.name,
+                        value=data['value'], unit=data['unit'],
+                        type=sensor.type or data['type'], sampledAt=time.time()))
+            data = sml_parser.get_energy_data()
+            if data is not None:
+                for name, value in data.to_dict().items():
+                    readings.append(dict(id='pw-'+name, name=name, value=value,
+                        unit='kWh' if name in ('bought','sold') else 'W',
+                        type='power', sampledAt=data.sampled_at))
             else:
-                update_sensor(id=sensor.device_id,
-                              name=sensor.name,
-                              value=data['value'],
-                              unit=data['unit'],
-                              type=sensor.type if sensor.type is not None else data['type'])
-        if (data := sml_parser.get_energy_data()) is not None:
-            for k, v in data.to_dict().items():
-                sensors.append(
-                    {'id': 'pw-'+k, 'value': v, 'name': k})
-        else:
-            Event(f"No power data from serial connection {sml_parser.serial_port}",
-                  initiator='Power Component',
-                  event_severity=EventSeverity.IMPORTANT,
-                  event_type=EventType.ERROR).store()
-            sml_parser = SMLSerialParser(port='/dev/ttyUSB1')
-
-        batch_update_sensor(sensors_list=sensors)
-        check_routines()
-        if (delta := (datetime.now().timestamp() - start)) < REFRESH_TIME_SECONDS:
-            time.sleep(REFRESH_TIME_SECONDS - delta)
+                Event('No power data from serial connection', initiator='Power Component',
+                    event_severity=EventSeverity.IMPORTANT, event_type=EventType.ERROR).store()
+            # Capture by value: the cloud worker never reads mutable hardware/config state.
+            cloud_upload.submit('snapshot', lambda rows=readings: upload_snapshot(rows))
+        except Exception:
+            logger.exception('Power acquisition failed; retrying next cycle')
+        time.sleep(max(.1, REFRESH_TIME_SECONDS-(time.monotonic()-start)))
 
 
 app = Flask(__name__)

@@ -1,0 +1,422 @@
+{
+  "schemaVersion": 1,
+  "version": "1.0.0",
+  "measurements": {
+    "air": {
+      "label": "Außentemperatur",
+      "unit": "°C"
+    },
+    "water": {
+      "label": "Poolwasser",
+      "unit": "°C"
+    },
+    "buffer_top": {
+      "label": "Puffer oben",
+      "unit": "°C"
+    },
+    "bufferTop": {
+      "label": "Puffer oben",
+      "unit": "°C"
+    },
+    "buffer_bottom": {
+      "label": "Puffer unten",
+      "unit": "°C"
+    },
+    "bufferBottom": {
+      "label": "Puffer unten",
+      "unit": "°C"
+    },
+    "total": {
+      "label": "Hausstromzähler",
+      "unit": "W"
+    },
+    "bought": {
+      "label": "Netzbezug gesamt",
+      "unit": "kWh"
+    },
+    "sold": {
+      "label": "Einspeisung gesamt",
+      "unit": "kWh"
+    },
+    "l1": {
+      "label": "Netzleistung · Phase 1",
+      "unit": "W"
+    },
+    "l2": {
+      "label": "Netzleistung · Phase 2",
+      "unit": "W"
+    },
+    "l3": {
+      "label": "Netzleistung · Phase 3",
+      "unit": "W"
+    },
+    "solar": {
+      "label": "Photovoltaik"
+    },
+    "solar-totalProduction": {
+      "label": "Solarertrag gesamt",
+      "unit": "kWh"
+    },
+    "totalProduction": {
+      "label": "Solarertrag gesamt",
+      "unit": "kWh"
+    },
+    "charge_power": {
+      "label": "Ladeleistung",
+      "unit": "W"
+    },
+    "discharge_power": {
+      "label": "Abgabeleistung",
+      "unit": "W"
+    },
+    "grid_power": {
+      "label": "Netzleistung",
+      "unit": "W"
+    },
+    "grid_input_power": {
+      "label": "Leistung aus dem Netz",
+      "unit": "W"
+    },
+    "home_output_power": {
+      "label": "Leistung zum Haus",
+      "unit": "W"
+    },
+    "solar_input_power": {
+      "label": "Solarleistung",
+      "unit": "W"
+    },
+    "offgrid_output_power": {
+      "label": "Leistung am Insel-Ausgang",
+      "unit": "W"
+    },
+    "phase_a_reported_power": {
+      "label": "Netzleistung · Phase 1",
+      "unit": "W"
+    },
+    "phase_b_reported_power": {
+      "label": "Netzleistung · Phase 2",
+      "unit": "W"
+    },
+    "phase_c_reported_power": {
+      "label": "Netzleistung · Phase 3",
+      "unit": "W"
+    },
+    "state": {
+      "label": "Betriebszustand"
+    },
+    "grid_state": {
+      "label": "Netzstatus"
+    },
+    "voltage": {
+      "label": "Spannung",
+      "unit": "V"
+    },
+    "temperature": {
+      "label": "Temperatur",
+      "unit": "°C"
+    },
+    "power": {
+      "label": "Leistung",
+      "unit": "W"
+    },
+    "error_flag": {
+      "label": "Fehlerstatus"
+    },
+    "fault_level": {
+      "label": "Fehlerstufe"
+    },
+    "pack_count": {
+      "label": "Anzahl Akkumodule"
+    },
+    "acWOut": {
+      "label": "PV-Leistung",
+      "unit": "W"
+    },
+    "acWOutL1": {
+      "label": "PV-Leistung · Phase 1",
+      "unit": "W"
+    },
+    "acWOutL2": {
+      "label": "PV-Leistung · Phase 2",
+      "unit": "W"
+    },
+    "acWOutL3": {
+      "label": "PV-Leistung · Phase 3",
+      "unit": "W"
+    },
+    "acAOut": {
+      "label": "Ausgangsstrom",
+      "unit": "A"
+    },
+    "acVOutL1": {
+      "label": "Ausgangsspannung · Phase 1",
+      "unit": "V"
+    },
+    "acVOutL2": {
+      "label": "Ausgangsspannung · Phase 2",
+      "unit": "V"
+    },
+    "acVOutL3": {
+      "label": "Ausgangsspannung · Phase 3",
+      "unit": "V"
+    },
+    "acVOutL1v2": {
+      "label": "Spannung zwischen Phase 1 und 2",
+      "unit": "V"
+    },
+    "acVOutL2v3": {
+      "label": "Spannung zwischen Phase 2 und 3",
+      "unit": "V"
+    },
+    "acVOutL3v1": {
+      "label": "Spannung zwischen Phase 3 und 1",
+      "unit": "V"
+    },
+    "apparent": {
+      "label": "Scheinleistung",
+      "unit": "VA"
+    },
+    "apparentL1": {
+      "label": "Scheinleistung · Phase 1",
+      "unit": "VA"
+    },
+    "apparentL2": {
+      "label": "Scheinleistung · Phase 2",
+      "unit": "VA"
+    },
+    "apparentL3": {
+      "label": "Scheinleistung · Phase 3",
+      "unit": "VA"
+    },
+    "reactive": {
+      "label": "Blindleistung",
+      "unit": "var"
+    },
+    "reactiveL1": {
+      "label": "Blindleistung · Phase 1",
+      "unit": "var"
+    },
+    "reactiveL2": {
+      "label": "Blindleistung · Phase 2",
+      "unit": "var"
+    },
+    "reactiveL3": {
+      "label": "Blindleistung · Phase 3",
+      "unit": "var"
+    },
+    "dcAIn": {
+      "label": "PV-Eingangsstrom",
+      "unit": "A"
+    },
+    "dcVIn": {
+      "label": "PV-Eingangsspannung",
+      "unit": "V"
+    },
+    "dcWIn": {
+      "label": "PV-Eingangsleistung",
+      "unit": "W"
+    },
+    "frequency": {
+      "label": "Netzfrequenz",
+      "unit": "Hz"
+    },
+    "innerCircuitV": {
+      "label": "Zwischenkreisspannung",
+      "unit": "V"
+    },
+    "inverterTemperature": {
+      "label": "Wechselrichtertemperatur",
+      "unit": "°C"
+    },
+    "uptime": {
+      "label": "Betriebszeit"
+    },
+    "uptimeFeedIn": {
+      "label": "Einspeisezeit"
+    },
+    "soc": {
+      "label": "Ladestand",
+      "unit": "%"
+    },
+    "gridPower": {
+      "label": "Netzleistung",
+      "unit": "W"
+    },
+    "batteryPower": {
+      "label": "Batterieleistung",
+      "unit": "W"
+    }
+  },
+  "equipment": {
+    "power": {
+      "label": "Strommessung",
+      "description": "Netzbezug und Einspeisung",
+      "features": {
+        "sensor": [
+          "power"
+        ]
+      }
+    },
+    "solar": {
+      "label": "Photovoltaik",
+      "description": "Solarerzeugung und Energieansicht",
+      "features": {
+        "sensor": [
+          "solar"
+        ]
+      }
+    },
+    "battery": {
+      "label": "Batterien",
+      "description": "Ladestand und Lade-/Abgabeleistung",
+      "features": {
+        "sensor": [
+          "battery"
+        ]
+      }
+    },
+    "pool": {
+      "label": "Pool / Wasser",
+      "description": "Wassertemperatur und Pool-Seite",
+      "features": {
+        "sensor": [
+          "waterTemperature"
+        ]
+      }
+    },
+    "outdoor": {
+      "label": "Außentemperatur",
+      "description": "Außenluft als Messwert",
+      "features": {
+        "sensor": [
+          "airTemperature"
+        ]
+      }
+    },
+    "buffer": {
+      "label": "Pufferspeicher",
+      "description": "Temperaturen oben und unten",
+      "features": {
+        "sensor": [
+          "bufferTop",
+          "bufferBottom"
+        ]
+      }
+    },
+    "devices": {
+      "label": "Gerätesteuerung",
+      "description": "Geräteliste und Geräteparameter",
+      "features": {
+        "device": [
+          "devices"
+        ]
+      }
+    },
+    "chicken": {
+      "label": "Hühner-Wasserversorgung",
+      "description": "Direktzugriff auf dem Dashboard",
+      "features": {
+        "device": [
+          "chicken"
+        ]
+      }
+    },
+    "gate": {
+      "label": "Tor",
+      "description": "Direktzugriff auf dem Dashboard",
+      "features": {
+        "device": [
+          "gate"
+        ]
+      }
+    }
+  },
+  "roles": {
+    "grid.main": {
+      "label": "Haupt-Netzzähler",
+      "unit": "W",
+      "equipment": "power",
+      "legacyName": "total",
+      "source": "power",
+      "requiredFeatures": {
+        "sensor": [
+          "power"
+        ]
+      }
+    },
+    "temperature.air": {
+      "label": "Außenluft",
+      "unit": "°C",
+      "equipment": "outdoor",
+      "legacyName": "air",
+      "source": "temperature",
+      "requiredFeatures": {
+        "sensor": [
+          "airTemperature"
+        ]
+      }
+    },
+    "temperature.water": {
+      "label": "Poolwasser",
+      "unit": "°C",
+      "equipment": "pool",
+      "legacyName": "water",
+      "source": "temperature",
+      "requiredFeatures": {
+        "sensor": [
+          "waterTemperature"
+        ]
+      }
+    },
+    "temperature.bufferTop": {
+      "label": "Puffer oben",
+      "unit": "°C",
+      "equipment": "buffer",
+      "legacyName": "buffer_top",
+      "source": "temperature",
+      "requiredFeatures": {
+        "sensor": [
+          "bufferTop"
+        ]
+      }
+    },
+    "temperature.bufferBottom": {
+      "label": "Puffer unten",
+      "unit": "°C",
+      "equipment": "buffer",
+      "legacyName": "buffer_bottom",
+      "source": "temperature",
+      "requiredFeatures": {
+        "sensor": [
+          "bufferBottom"
+        ]
+      }
+    },
+    "temperature.buffer_top": {
+      "label": "Puffer oben",
+      "unit": "°C",
+      "equipment": "buffer",
+      "legacyName": "buffer_top",
+      "source": "temperature",
+      "aliasOf": "temperature.bufferTop",
+      "requiredFeatures": {
+        "sensor": [
+          "bufferTop"
+        ]
+      }
+    },
+    "temperature.buffer_bottom": {
+      "label": "Puffer unten",
+      "unit": "°C",
+      "equipment": "buffer",
+      "legacyName": "buffer_bottom",
+      "source": "temperature",
+      "aliasOf": "temperature.bufferBottom",
+      "requiredFeatures": {
+        "sensor": [
+          "bufferBottom"
+        ]
+      }
+    }
+  }
+}

@@ -1,7 +1,8 @@
 """Report dependencies from existing device configuration; never import GPIO code."""
 from pathlib import Path
 
-FEATURES={'air':'airTemperature','water':'waterTemperature','bufferTop':'bufferTop','bufferBottom':'bufferBottom'}
+from utils.site_catalog import role_features
+FEATURES=role_features()
 def requirements_from_config(config):
     if not isinstance(config,dict):raise ValueError('Invalid device configuration')
     result=[]
@@ -17,7 +18,7 @@ def requirements_from_config(config):
                 roles.add('temperature.'+step['sensor_name'])
             for role in roles:
                 if role.startswith('temperature.') and role[12:] in FEATURES:
-                    features.setdefault('sensor',[]).append(FEATURES[role[12:]])
+                    features.setdefault('sensor',[]).extend(FEATURES[role[12:]])
             result.append(dict(deviceId='device:'+name,label=device.get('displayed_name') or name,
                 roles=sorted(roles),features={k:sorted(set(v)) for k,v in features.items()}))
     return result

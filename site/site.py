@@ -13,7 +13,8 @@ def health(): return jsonify(status='ok')
 @app.get('/v1/site')
 def snapshot():
     current=configuration()
-    return jsonify(**current,inventory=inventory())
+    from utils.site_catalog import catalog
+    return jsonify(**current,inventory=inventory(),definitions=catalog())
 
 def synchronize():
     auth=os.environ['AUTH_URL'].removeprefix('https://').rstrip('/')

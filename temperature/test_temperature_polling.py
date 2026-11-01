@@ -51,15 +51,16 @@ class TemperaturePollingTests(unittest.TestCase):
 
     def test_polling_recovers_after_unexpected_read_error(self):
         with patch.object(temperature, 'update_temperature_by_serial', side_effect=[ValueError('bad frame'), []]) as read, \
-             patch.object(temperature, 'batch_update_sensor') as upload, \
+             patch.object(temperature, 'cloud_upload') as upload, \
              patch.object(temperature, 'check_routines') as routines, \
              patch.object(temperature.logger, 'exception'), \
              patch.object(temperature.time, 'sleep', side_effect=[None, StopPolling()]):
             with self.assertRaises(StopPolling):
                 temperature.update_loop()
         self.assertEqual(read.call_count, 2)
-        routines.assert_called_once()
-        upload.assert_called_once_with(sensors_list=[])
+        routines.assert_not_called()
+        upload.submit.assert_called_once()
+        self.assertEqual(upload.submit.call_args.args[0], 'snapshot')
 
 
 if __name__ == '__main__':

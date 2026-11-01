@@ -1,4 +1,5 @@
 """Versioned site configuration shared by backend and local agent (no secrets)."""
+from utils.site_catalog import catalog as definitions
 import copy
 import math
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -30,7 +31,7 @@ def validate(data, catalog=None):
             raise ValueError('Invalid source identifier')
         if identifier not in known or known[identifier].get('kind')!='measurement':
             raise ValueError('Source not present in agent inventory')
-        unit='W' if role=='grid.main' else '°C'
+        unit=definitions()['roles'].get(role,{}).get('unit','W' if role=='grid.main' else '°C')
         if known[identifier].get('unit')!=unit:
             raise ValueError('Incompatible source unit for '+role)
     for group in ('measurements','devices'):
