@@ -19,6 +19,18 @@ SQLite stores the last accepted config across restarts. Local API reads are
 separate from cloud synchronization. Timezone is site metadata at this stage;
 legacy scheduling behavior is unchanged until the engine migration.
 
+Start from the repository root using the existing environment. Initialize the
+shared volume before starting capture: its directory must belong to UID/GID
+65534 with mode 2770 and its SQLite files to UID/GID 65534 with mode 0660.
+This preserves the existing non-root Zendure collector. Do not make the collector
+root or make the volume world-writable. The initial configuration can be created
+by running `utils.site_store.configuration()` in a one-off site container as root,
+then applying the ownership/modes before normal services start.
+
+The installed production instance uses a persistent root-level
+`docker-compose.override.yaml` and SITE_LOCAL_CONTROL=1 after verified shadow
+comparison. Fresh installations deliberately default to capture-only mode.
+
 Start from the repository root using the existing environment:
 
 ```
@@ -50,3 +62,18 @@ claim of fully offline startup/control is made in this phase. Sensor roles must
 be verified against electrical measurement boundaries before control activation.
 Full offline startup, async cloud queues, rule simulation and a node editor are
 subsequent engine work. A 24-hour outage test has not been performed.
+
+
+## Production rollout 2026-11-01
+
+The existing customer backend API, device algorithms and device-config.yaml were
+retained. Native buffer_top/buffer_bottom were mapped to verified legacy roles
+bufferTop/bufferBottom in configuration revision 1. Native water measurements
+match the existing batch path: do not add the driver offset a second time.
+Two live comparison cycles before and after activation matched grid power and
+all four relevant temperatures exactly. The device restart's possible output
+interruptions and timer reset were explicitly approved by the user.
+
+Backups: /home/pi/fleybach-agent-releases/site-foundation-20261101.
+No 24-hour outage test was performed. Existing socket startup and cloud event
+paths are unchanged; this rollout reduces measurement-path cloud dependencies.
