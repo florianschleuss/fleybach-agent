@@ -1,5 +1,7 @@
 # utils/switchable/dynamicPowerSwitchable.py
 from __future__ import annotations
+from utils.faults import FaultReporter
+ha_faults = FaultReporter("Home Assistant")
 
 from enum import Enum
 import json
@@ -345,16 +347,16 @@ class DynamicPowerSwitchable(PowerSwitchable):
 
         try:
             r = requests.post(url, headers=headers, data=json.dumps(payload), timeout=5)
+            ha_faults.observe('HA_SETPOINT', self.name, r.status_code != 200,
+                              'Home Assistant rejected the heat-pump setpoint' if r.status_code != 200 else 'Home Assistant accepted the heat-pump setpoint again',
+                              [f"HTTP status: {r.status_code}"])
             if r.status_code != 200 and reason_flow is not None:
-                reason_flow.add_reason(
-                    f"Unsuccessful RL_WPSoll update to HA "
-                    f"({r.status_code}): {r.text}"
-                )
+                reason_flow.add_reason(f"Home Assistant rejected setpoint (HTTP {r.status_code}); see HA_SETPOINT problem")
         except requests.exceptions.RequestException as e:
+            ha_faults.observe('HA_SETPOINT', self.name, True,
+                              'Heat-pump setpoint could not be sent to Home Assistant', [type(e).__name__])
             if reason_flow is not None:
-                reason_flow.add_reason(
-                    f"Error sending RL_WPSoll to HA: {type(e).__name__} – {e}"
-                )
+                reason_flow.add_reason(f"Home Assistant setpoint request failed ({type(e).__name__}); see HA_SETPOINT problem")
 
     # ---------- main control entrypoint ----------
 

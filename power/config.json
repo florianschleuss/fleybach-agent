@@ -13,10 +13,44 @@
         {
             "name": "power history",
             "type": "cycle",
-            "intervalSeconds": 360,
+            "intervalSeconds": 10,
             "sensorNames": [
                 "acWOut",
-                "total"
+                "total",
+                "l1",
+                "l2",
+                "l3",
+                "dcWIn",
+                "acWOutL1",
+                "acWOutL2",
+                "acWOutL3"
+            ]
+        },
+        {
+            "name": "power diagnostics history",
+            "type": "cycle",
+            "intervalSeconds": 30,
+            "sensorNames": [
+                "acAOut",
+                "acVOutL1",
+                "acVOutL1v2",
+                "acVOutL2",
+                "acVOutL2v3",
+                "acVOutL3",
+                "acVOutL3v1",
+                "apparent",
+                "apparentL1",
+                "apparentL2",
+                "apparentL3",
+                "dcAIn",
+                "dcVIn",
+                "frequency",
+                "innerCircuitV",
+                "inverterTemperature",
+                "reactive",
+                "reactiveL1",
+                "reactiveL2",
+                "reactiveL3"
             ]
         }
     ],

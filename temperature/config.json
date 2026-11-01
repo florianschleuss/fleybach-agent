@@ -3,7 +3,7 @@
     {
       "name": "temperature history",
       "type": "cycle",
-      "intervalSeconds": 3600,
+      "intervalSeconds": 30,
       "sensorNames": [
         "water",
         "air",

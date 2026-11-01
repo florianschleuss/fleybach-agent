@@ -42,7 +42,7 @@ class Event:
                  initiator: str,
                  event_severity: EventSeverity,
                  event_type: EventType = EventType.DEFAULT,
-                 details: Optional[List[str]] = None):
+                 details: Optional[List[str]] = None, *, error_code=None, subject_id=None, state="fault"):
         """
         Initialize an Event object.
 
@@ -56,6 +56,7 @@ class Event:
         self.details: Optional[List[str]] = details
         self.event_severity: EventSeverity = event_severity
         self.event_type: EventType = event_type
+        self.fault_fields = dict(errorCode=error_code, subjectId=subject_id, state=state) if error_code else {}
         self._stored: bool = False
         self._tags: List[str] = []
 
@@ -111,13 +112,13 @@ class Event:
             return f"{formatted_str}\n{details_string}\n~ {self.initiator}"
         return f"{formatted_str} ~ {self.initiator}"
 
-    def store(self) -> None:
+    def store(self) -> bool:
         """
         Store event to intendend place.
         Disable store ability after storing once.
         """
         if self._stored:
-            return
+            return True
         if os.environ.get('TESTING_ENV') == 'True':
             # Triggered by unittest -> print to console with detail
             logger.debug(self.to_string(details=True))
@@ -133,9 +134,10 @@ class Event:
             elif self.event_severity == EventSeverity.CRITICAL:
                 logger.critical(self.to_string(details=True))
             if self.event_severity in [EventSeverity.INFO, EventSeverity.NEUTRAL, EventSeverity.IMPORTANT, EventSeverity.CRITICAL]:
-                self._post_event()
+                self._stored = self._post_event()
+                return self._stored
         self._stored = True
-        return
+        return True
 
     def _post_event(self) -> bool:
         """
@@ -143,7 +145,6 @@ class Event:
 
         :return: Success of POST
         """
-        jwt.v()
         data = {
             'comment': self.comment,
             'initiator': self.initiator,
@@ -152,12 +153,14 @@ class Event:
             'type': self.event_type.value.capitalize(),
             'tags': self.tags
         }
+        data.update(self.fault_fields)
         if self.details is not None:
             data['details'] = self.details
         try:
+            jwt.v()
             post = requests.post(f'https://{AUTH_URL}/event/events?customer_id={jwt.token.customer_id}',
-                                 json=data, headers={'x-access-token': jwt.token._token})
+                                 json=data, headers={'x-access-token': jwt.token._token}, timeout=(5, 10))
             return post.status_code == 200
-        except requests.exceptions.ConnectionError:
+        except requests.exceptions.RequestException:
             pass
         return False

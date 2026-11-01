@@ -116,6 +116,17 @@ class Routine:
             return False
         return self.last_run < time.time() - self.interval_seconds
 
+    def completed(self, started_at: float) -> None:
+        """Advance the configured cadence; HTTP latency must not skip a poll.
+
+        Missed intervals are skipped, never replayed as duplicate history rows.
+        """
+        if self.interval_seconds <= 0:
+            self.last_run = started_at
+            return
+        steps = max(1, int((started_at-self.last_run)/self.interval_seconds))
+        self.last_run += steps*self.interval_seconds
+
 
 class SensorConfig:
     def __init__(self,

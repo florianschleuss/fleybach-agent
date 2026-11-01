@@ -1,3 +1,5 @@
+from utils.faults import FaultReporter
+faults = FaultReporter("Power Component")
 from datetime import datetime
 import json
 import os
@@ -102,14 +104,14 @@ def make_history(names: List):
     try:
         post = r.post(f'https://{AUTH_URL}/sensor/sensors/names/history?customer_id={jwt.token.customer_id}', json={
             'names': names
-        }, headers={'x-access-token': jwt.token._token})
-    except r.exceptions.ConnectionError as e:
-        Event("Error while make_history()",
-              details=[str(e)],
-              initiator='Power Component',
-              event_severity=EventSeverity.IMPORTANT,
-              event_type=EventType.ERROR).store()
-    return False  # TODO Validation of success
+        }, headers={'x-access-token': jwt.token._token}, timeout=(5, 15))
+        post.raise_for_status()
+        rows = post.json().get('data', [])
+        fresh = {row['name'] for row in rows if row.get('lastModified', 0) >= time.time()-60}
+        return set(names).issubset(fresh)
+    except (r.exceptions.RequestException, ValueError, TypeError, KeyError) as exc:
+        logger.warning('Power history request failed (%s); retrying next cycle', type(exc).__name__)
+        return False
 
 
 def get_inverter_data(name: str) -> Optional[Dict]:
@@ -134,18 +136,16 @@ def get_inverter_data(name: str) -> Optional[Dict]:
             register.length,
             unit=3
         )
-    except:
-        Event("Cannot connect to inverter",
-              initiator='Power Component',
-              event_severity=EventSeverity.CRITICAL,
-              event_type=EventType.ERROR).store()
+    except Exception as exc:
+        faults.observe("INVERTER_CONNECTION", "inverter", True,
+                       "Cannot connect to inverter", [type(exc).__name__], critical=True)
         return
     if not hasattr(response, 'registers'):
-        Event("Malformed response from inverter",
-              initiator='Power Component',
-              event_severity=EventSeverity.IMPORTANT,
-              event_type=EventType.ERROR).store()
+        faults.observe("INVERTER_RESPONSE", name, True,
+                       "Inverter returned no register data", [f"Register: {name}"])
         return
+    faults.observe("INVERTER_CONNECTION", "inverter", False, "Inverter connection restored")
+    faults.observe("INVERTER_RESPONSE", name, False, "Inverter register data available again")
     register.set_registers(response.registers)
     if register.is_null() or register.get_value() == -2147483648:
         # Event("Failed Register",
@@ -166,13 +166,15 @@ def check_routines():
         if routine.type == 'cycle':
             if not routine.due():
                 continue
-            make_history(routine.sensor_names)
+            history_started = time.time()
+            if not make_history(routine.sensor_names):
+                continue
             Event(
                 f"{routine.name.capitalize()}: {format_seconds_to_mm_ss(time.time()-routine.last_run-10)} since last run",
                 initiator='Power Component',
                 event_severity=EventSeverity.DEBUG).store()
             # -10 seconds are to account for eventual stack of miliseconds up to a full skip of one round
-            routine.last_run = time.time()
+            routine.completed(history_started)
     return
 
 

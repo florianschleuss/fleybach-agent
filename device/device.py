@@ -1,3 +1,5 @@
+from utils.faults import FaultReporter
+faults = FaultReporter("Device Component")
 """depice.py"""
 import datetime
 from zoneinfo import ZoneInfo
@@ -237,9 +239,10 @@ class DeviceController:
         device: PowerSwitchable = self._devices[device_name]
 
         reason_flow: ReasonFlow = ReasonFlow(
-            name=f"Manual switch for {device.name.capitalize()}",
+            name=f"{'Controller switch request' if user == 'HeatPumpController' else 'Manual switch'} for {device.name.capitalize()}",
             initiator=user,
-            initial_comment=f"{device.name.capitalize()} switched by '{user}'")
+            auto_store_event_severity=EventSeverity.DEBUG if user == 'HeatPumpController' else EventSeverity.NEUTRAL,
+            initial_comment=f"{device.name.capitalize()} requested by '{user}'")
         to_value: bool = new_state if new_state is not None else not device.state
         set_value: bool = device.set_state(new_state=to_value,
                                            user=user,
@@ -619,10 +622,10 @@ def get_power_consumption() -> float:
         raise ConnectionError("Invalid formed data was returned")
     data: Dict = get.json()['data'][0]
     if data['lastModified'] + 30 < time.time():
-        Event("Power value received from backend is not up to date",
-              event_severity=EventSeverity.IMPORTANT,
-              initiator='Device Component').store()
-        pass
+        faults.observe("POWER_STALE", "total", True,
+                       "Power value received from backend is not up to date")
+    else:
+        faults.observe("POWER_STALE", "total", False, "Power readings are fresh again")
     return float(data['value'])
 
 
@@ -649,11 +652,11 @@ def get_temperatures() -> Dict[str, float]:
     temps = {}
     for item in data:
         if item['lastModified'] + 60 < time.time():
-            Event("Temperature value received from backend is not up to date",
-                  event_severity=EventSeverity.IMPORTANT,
-                  details=[f"Sensor name: '{item['name']}'"],
-                  initiator='Device Component').store()
+            faults.observe("TEMPERATURE_STALE", item['name'], True,
+                           "Temperature value received from backend is not up to date",
+                           [f"Sensor name: '{item['name']}'"] )
             continue
+        faults.observe('TEMPERATURE_STALE', item['name'], False, 'Temperature readings are fresh again')
         temps[item['name']] = float(item['value'])
 
     return temps
@@ -712,6 +715,7 @@ def connect():
     Registers endpoint as soon as the WS is connected
     """
     sio.emit('customer_domain', CUSTOMER_DOMAIN)
+    faults.observe('WS_CONNECTION', 'backend', False, 'WebSocket connection restored')
     Event("WSO Connected", initiator='Device Component',
           event_severity=EventSeverity.INFO,
           details=[f"Registered as '{CUSTOMER_DOMAIN}'"]).store()
@@ -719,6 +723,7 @@ def connect():
 
 @sio.event
 def disconnect():
+    faults.observe('WS_CONNECTION', 'backend', True, 'WebSocket connection interrupted')
     Event("WSO Disconnected",
           initiator='Device Component',
           event_severity=EventSeverity.INFO,
@@ -831,17 +836,9 @@ if __name__ == "__main__":
             if sio.connected:
                 break
         except socketio.client.exceptions.ConnectionError as e:
-            Event(
-                f"SIO connect error (attempt {retries + 1}/{MAX_RETRIES})",
-                details=[
-                    f"Target URL: {target_url}/socket/socket.io",
-                    "Transport: websocket",
-                    f"Reason: {type(e).__name__} – {str(e)}"
-                ],
-                initiator='Device Component',
-                event_severity=EventSeverity.CRITICAL,
-                event_type=EventType.ERROR
-            ).store()
+            faults.observe('WS_CONNECTION', 'backend', True,
+                           'WebSocket connection could not be established',
+                           [f"Attempt: {retries + 1}/{MAX_RETRIES}", type(e).__name__], force=True)
 
         # --- Exponential backoff ---
         delay = min(BASE_DELAY * (2 ** retries), MAX_DELAY)
@@ -856,12 +853,9 @@ if __name__ == "__main__":
 
     # Handle permanent failure
     if not sio.connected:
-        Event(
-            f"Failed to connect to SocketIO after {MAX_RETRIES} attempts",
-            initiator='Device Component',
-            event_severity=EventSeverity.CRITICAL,
-            event_type=EventType.ERROR
-        ).store()
+        faults.observe('WS_CONNECTION', 'backend', True,
+                       'WebSocket connection unavailable after all startup retries',
+                       [f"Attempts: {MAX_RETRIES}"], critical=True)
     while True:
         start: float = datetime.datetime.now().timestamp()
 
@@ -883,13 +877,11 @@ if __name__ == "__main__":
 
         try:
             temperatures = get_temperatures()
+            faults.observe('TEMPERATURE_API', 'temperature', False, 'Temperature API available again')
             dc.temperature_tick(temperatures)
         except ConnectionError as e:
-            Event("Error while get_temperatures()",
-                  details=[str(e)],
-                  initiator='Device Component',
-                  event_severity=EventSeverity.IMPORTANT,
-                  event_type=EventType.ERROR).store()
+            faults.observe('TEMPERATURE_API', 'temperature', True,
+                           'Temperature readings could not be retrieved from the API', [type(e).__name__])
 
         try:
             dc.dynamic_tick(grid_power_balance=power, temperatures=temperatures)

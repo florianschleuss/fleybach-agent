@@ -134,7 +134,7 @@ def update_temperature(id: str) -> bool:
             ).send(es, to_print=True)
     except Exception as e:
         Event(str(e),
-              initiator='Power Component',
+              initiator='Temperature Component',
               event_severity=EventSeverity.IMPORTANT,
               event_type=EventType.ERROR).store()
     return False
@@ -191,14 +191,15 @@ def check_routines():
         if routine.type == 'cycle':
             if not routine.due():
                 continue
+            history_started = time.time()
             if not make_history(routine.sensor_names):
                 continue
             Event(
                 f"{routine.name.capitalize()}: {format_seconds_to_mm_ss(time.time()-routine.last_run-10)} since last run",
-                initiator='Power Component',
+                initiator='Temperature Component',
                 event_severity=EventSeverity.DEBUG).store()
             # -10 seconds are to account for eventual stack of miliseconds up to a full skip of one round
-            routine.last_run = time.time()
+            routine.completed(history_started)
         elif routine.type == 'datetime':
             # TODO Datetime routines rely on a specific date time combination to be triggered like cronjobs
             pass

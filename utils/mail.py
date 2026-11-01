@@ -1,7 +1,9 @@
+from utils.faults import FaultReporter
 from datetime import datetime
 import logging
 from typing import Dict, List, TypeVar
 import smtplib
+import ssl
 import hashlib
 import time
 from email.mime.text import MIMEText
@@ -90,6 +92,8 @@ class EmailSender:
         self.password: str = password
         self.cooldown_seconds: int = cooldown_seconds
         self._email_cache: Dict[str, float] = {}
+        self._faults = FaultReporter("Mail Util")
+        self._account = hashlib.sha256(f"{smtp_server}:{smtp_port}:{username}".encode()).hexdigest()[:24]
 
     @classmethod
     def from_env(cls):
@@ -129,7 +133,7 @@ class EmailSender:
 
         try:
             # Connect to the SMTP server
-            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+            with smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=15) as server:
                 # Log in to the SMTP server
                 server.starttls()
                 server.login(self.username, self.password)
@@ -150,14 +154,29 @@ class EmailSender:
                     MIMEText(f"{datetime.now()} UTC:\n{email.body}", 'plain'))
 
                 # Send the email
-                server.sendmail(self.username, email.to_addresses,
-                                message.as_string())
+                refused = server.sendmail(self.username, email.to_addresses,
+                                          message.as_string())
+                self._faults.observe("MAIL_RECIPIENT", self._account+":"+email_hash,
+                                     bool(refused), "SMTP server rejected some recipients" if refused else "SMTP server accepted recipients",
+                                     [f"Rejected recipients: {len(refused)}"], force=True)
 
                 # Update the cache with the timestamp
                 self._email_cache[email_hash] = time.time()
+                for code in ("MAIL_AUTH", "MAIL_CONNECTION", "MAIL_TLS"):
+                    self._faults.observe(code, self._account, False, "SMTP server accepted an email again")
+                self._faults.observe('MAIL_SEND', self._account+":"+email_hash, False, "SMTP server accepted this email again")
 
         except Exception as e:
-            Event(f"Error sending email: {str(e)}",
-                  initiator="Mail Util",
-                  event_severity=EventSeverity.IMPORTANT,
-                  event_type=EventType.ERROR).store()
+            code = ("MAIL_AUTH" if isinstance(e, smtplib.SMTPAuthenticationError) else
+                    "MAIL_RECIPIENT" if isinstance(e, smtplib.SMTPRecipientsRefused) else
+                    "MAIL_TLS" if isinstance(e, (ssl.SSLError, smtplib.SMTPNotSupportedError)) else
+                    "MAIL_CONNECTION" if isinstance(e, (OSError, smtplib.SMTPConnectError, smtplib.SMTPServerDisconnected)) else
+                    "MAIL_SEND")
+            subject = self._account+":"+email_hash if code in ('MAIL_RECIPIENT', 'MAIL_SEND') else self._account
+            messages = {"MAIL_AUTH": "SMTP authentication failed", "MAIL_RECIPIENT": "SMTP server rejected recipients",
+                        "MAIL_CONNECTION": "Connection to SMTP server failed", "MAIL_TLS": "Secure SMTP connection could not be established", "MAIL_SEND": "SMTP server did not accept the email"}
+            details = [type(e).__name__]
+            if isinstance(getattr(e, 'smtp_code', None), int):
+                details.append(f"SMTP status: {e.smtp_code}")
+            # Never persist credentials, recipient addresses, bodies or raw server replies.
+            self._faults.observe(code, subject, True, messages[code], details, force=True)
