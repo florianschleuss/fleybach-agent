@@ -32,6 +32,12 @@ es: EmailSender = EmailSender.from_env()
 with open('config.json', 'r') as config_file:
     config: SensorConfig = SensorConfig.from_object(json.load(config_file))
 
+from utils.site_store import publish as publish_site_measurement
+for configured_sensor in config.sensors:
+    publish_site_measurement('temperature:'+configured_sensor.device_id,
+        configured_sensor.name,'°C',None,0,'temperature')
+
+
 # Start a new history segment as soon as fresh readings arrive after restart.
 for routine in config.routines:
     if routine.type == 'cycle':

@@ -39,6 +39,15 @@ with open('sma/smaRegisters.json', encoding="utf-8") as config_file:
 with open('config.json', encoding="utf-8") as config_file:
     config: SensorConfig = SensorConfig.from_object(json.load(config_file))
 
+from utils.site_store import publish as publish_site_measurement
+for configured_sensor in config.sensors:
+    register = next((r for r in register_config if r.name == configured_sensor.name), None)
+    publish_site_measurement('power:'+configured_sensor.name,configured_sensor.name,
+        register.unit if register else (configured_sensor.unit or ''),None,0,'power')
+for name in ('total','l1','l2','l3','bought','sold'):
+    publish_site_measurement('power:'+name,name,'kWh' if name in ('bought','sold') else 'W',None,0,'power')
+
+
 client = ModbusTcpClient(host=address, port=port, timeout=10)
 client.connect()
 
