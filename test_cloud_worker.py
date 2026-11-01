@@ -85,6 +85,29 @@ class CloudTests(unittest.TestCase):
         self.assertEqual(batch['timeout'],(3,8))
         self.assertNotIn('sampledAt',str(batch['json']))
 
+    def test_real_temperature_polling_keeps_sampling_while_upload_is_blocked(self):
+        entered=threading.Event();release=threading.Event();count=[0]
+        worker=CloudWorker('temperature-test',capacity=1)
+        self.addCleanup(worker.close);self.addCleanup(release.set)
+        def upload(rows):entered.set();release.wait(3);return True
+        sensor=SimpleNamespace(enabled=True,serial_connected=True,device_id='water',
+            name='water',unit='°C',type='temperature',last_updated=time.time())
+        def read():
+            count[0]+=1;sensor.last_updated=time.time()
+            return [dict(id='water',value=14+count[0])]
+        def sleep(_):
+            self.assertTrue(entered.wait(1))
+            if count[0]>=4:raise StopPolling()
+        tree=ast.parse(Path('temperature/temperature.py').read_text(encoding='utf-8'))
+        function=next(node for node in tree.body if isinstance(node,ast.FunctionDef) and node.name=='update_loop')
+        from datetime import datetime
+        scope=dict(datetime=datetime,List=list,Dict=dict,config=SimpleNamespace(sensors=[sensor],get_sensor=lambda _:sensor),
+            update_temperature_by_serial=read,time=SimpleNamespace(sleep=sleep),
+            cloud_upload=worker,upload_snapshot=upload,REFRESH_TIME_SECONDS=10,logger=Mock())
+        exec(compile(ast.Module(body=[function],type_ignores=[]),'actual_temperature_loop','exec'),scope)
+        with self.assertRaises(StopPolling):scope['update_loop']()
+        self.assertEqual(count[0],4)
+
     def test_catalog_native_identity_and_custom_labels_are_preserved(self):
         from utils.site_catalog import catalog,default_label
         self.assertEqual(catalog()['schemaVersion'],1)
