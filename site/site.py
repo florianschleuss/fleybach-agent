@@ -7,6 +7,8 @@ from flask import Flask, jsonify
 from utils.auth import JWTValidator
 from utils.site_store import configuration, inventory, apply
 
+from utils.hardware_manager import HardwareManager
+hardware_manager=HardwareManager()
 app=Flask(__name__)
 @app.get('/health')
 def health(): return jsonify(status='ok')
@@ -30,10 +32,12 @@ def synchronize():
             response=session.get(url,headers=headers,timeout=(3,8))
             response.raise_for_status(); data=response.json()['data']
             current=configuration()
-            if data['revision']>current['revision'] or (data['revision']==current['revision'] and data.get('services')!=current.get('services')):
-                apply(data['revision'],data['config'],services=data.get('services'))
+            hardware={'schemaVersion':1,'sources':data.get('hardware',{}).get('sources',[])}
+            if data['revision']>current['revision'] or (data['revision']==current['revision'] and data.get('services')!=current.get('services')) or hardware!=current.get('hardware'):
+                apply(data['revision'],data['config'],services=data.get('services'),hardware=hardware)
             current=configuration()
-            payload={'activeRevision':current['revision'], 'inventory':inventory()}
+            results=hardware_manager.outgoing()
+            payload={'activeRevision':current['revision'], 'inventory':inventory(),'hardwareStatus':hardware_manager.report(),'hardwareResults':results}
             path=os.environ.get('SITE_DEVICE_CONFIG')
             if path:
                 try:
@@ -43,10 +47,13 @@ def synchronize():
                     app.logger.warning('Device dependency report unavailable; retaining previous report')
             response=session.post(url+'/agent',headers=headers,json=payload,timeout=(3,8))
             response.raise_for_status()
+            hardware_manager.acknowledge(results)
+            hardware_manager.queue_tests(response.json()['data'].get('hardwareTasks',[]))
         except (requests.RequestException, ValueError, KeyError, TypeError, OSError):
             app.logger.warning('Site synchronization unavailable; keeping local configuration')
         time.sleep(15)
 
 if __name__=='__main__':
+    threading.Thread(target=hardware_manager.run,daemon=True).start()
     threading.Thread(target=synchronize,daemon=True).start()
     app.run(host='0.0.0.0',port=80,debug=False)

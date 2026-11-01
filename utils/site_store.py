@@ -72,12 +72,17 @@ def inventory(now=None):
             'stale' if now-sampled>override.get('maxAgeSeconds',60) else 'valid')
     return items
 
-def apply(revision,config,services=None):
+def apply(revision,config,services=None,hardware=None):
     config=validate(config,inventory())
     if services is not None:
         if not isinstance(services,dict) or len(services)>100:raise ValueError('Invalid services')
         for kind,features in services.items():
             if not isinstance(kind,str) or len(kind)>80 or not isinstance(features,list) or len(features)>256 or any(not isinstance(f,str) or len(f)>120 for f in features):raise ValueError('Invalid service features')
+    if hardware is not None:
+        from utils.hardware_schema import validate_source
+        if not isinstance(hardware,dict) or hardware.get('schemaVersion')!=1 or set(hardware)-{'schemaVersion','sources'} or not isinstance(hardware.get('sources'),list) or len(hardware['sources'])>32:raise ValueError('Invalid hardware configuration')
+        hardware={'schemaVersion':1,'sources':[validate_source(source) for source in hardware['sources']]}
+        if len({s['id'] for s in hardware['sources']})!=len(hardware['sources']):raise ValueError('Duplicate hardware source')
     if isinstance(revision,bool) or not isinstance(revision,int) or revision<0: raise ValueError('Invalid revision')
     with database() as db:
         db.execute('BEGIN IMMEDIATE')
@@ -88,9 +93,11 @@ def apply(revision,config,services=None):
                 raise ValueError('Stale/conflicting configuration')
             if revision==current['revision'] and services is not None and 'services' in current and services!=current['services']:
                 raise ValueError('Conflicting service configuration')
+            if revision==current['revision'] and hardware is not None and 'hardware' in current and hardware!=current['hardware']:raise ValueError('Conflicting hardware configuration')
             db.execute('INSERT OR IGNORE INTO revisions VALUES (?,?)',(current['revision'],old[0]))
         payload=dict(revision=revision,config=config)
         if services is not None:payload['services']=services
+        if hardware is not None:payload['hardware']=hardware
         encoded=json.dumps(payload)
         db.execute('INSERT INTO settings VALUES (1,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload',(encoded,))
         db.execute('INSERT INTO revisions VALUES (?,?) ON CONFLICT(revision) DO UPDATE SET payload=excluded.payload',(revision,encoded))

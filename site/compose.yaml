@@ -7,6 +7,7 @@ services:
     volumes:
       - ./utils:/app/utils:ro
       - ./device/device-config.yaml:/config/devices.yaml:ro
+      - ./zendure/config.json:/config/zendure.json:ro
       - site-state:/state
     environment:
       - CUSTOMER_DOMAIN
@@ -14,6 +15,9 @@ services:
       - AUTH_URL
       - PYTHONDONTWRITEBYTECODE=1
       - SITE_DEVICE_CONFIG=/config/devices.yaml
+      - SITE_ZENDURE_CONFIG=/config/zendure.json
+      - SMA_MODBUS_IP
+      - SMA_MODBUS_PORT
       - SITE_STATE_PATH=/state/site.sqlite3
   power:
     volumes:

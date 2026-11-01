@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "measurements": {
     "air": {
       "label": "Außentemperatur",
@@ -416,6 +416,53 @@
         "sensor": [
           "bufferBottom"
         ]
+      }
+    }
+  },
+  "hardwareDrivers": {
+    "zendure_battery": {
+      "label": "Zendure Batterie",
+      "defaultPort": 80
+    },
+    "zendure_meter": {
+      "label": "Zendure Netzzähler",
+      "defaultPort": 80
+    },
+    "sma_modbus": {
+      "label": "SMA Wechselrichter · Modbus TCP",
+      "defaultPort": 502,
+      "defaultUnitId": 3,
+      "measurements": {
+        "acWOut": {
+          "address": 30775,
+          "words": 2,
+          "signed": true,
+          "unit": "W"
+        },
+        "totalProduction": {
+          "address": 30513,
+          "words": 4,
+          "scale": 0.001,
+          "unit": "kWh"
+        },
+        "acWOutL1": {
+          "address": 30777,
+          "words": 2,
+          "signed": true,
+          "unit": "W"
+        },
+        "acWOutL2": {
+          "address": 30779,
+          "words": 2,
+          "signed": true,
+          "unit": "W"
+        },
+        "acWOutL3": {
+          "address": 30781,
+          "words": 2,
+          "signed": true,
+          "unit": "W"
+        }
       }
     }
   }
