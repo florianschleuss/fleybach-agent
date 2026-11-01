@@ -38,6 +38,13 @@ class TemperaturePollingTests(unittest.TestCase):
             self.assertEqual(temperature.update_temperature_by_serial(), [{'id':'good','value':15.5}])
         self.assertEqual(self.sensor.value, 15.5)
 
+    def test_local_reading_matches_existing_batch_without_duplicate_offset(self):
+        self.sensor.offset = 2
+        with patch('utils.site_store.publish') as publish:
+            updates = temperature.serial_sensor_updates('{"sensors":[{"id":"good","value":14.5}]}')
+        self.assertEqual(updates, [{'id': 'good', 'value': 14.5}])
+        self.assertEqual(publish.call_args.args[3], 14.5)
+
     def test_invalid_values_and_missing_sensor_lists_do_not_crash(self):
         self.assertIsNone(temperature.serial_sensor_updates('{"other":[]}'))
         self.assertEqual(temperature.serial_sensor_updates('{"sensors":[{},null,{"id":"good","value":true},{"id":"good","value":NaN}]}'), [])

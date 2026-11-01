@@ -1,6 +1,7 @@
 services:
   site:
     container_name: site
+    user: "65534:65534"
     build: ./site
     restart: unless-stopped
     volumes:
@@ -10,6 +11,7 @@ services:
       - CUSTOMER_DOMAIN
       - CUSTOMER_SECRET
       - AUTH_URL
+      - PYTHONDONTWRITEBYTECODE=1
       - SITE_STATE_PATH=/state/site.sqlite3
   power:
     volumes:
@@ -29,6 +31,7 @@ services:
       - SITE_LOCAL_CONTROL=${SITE_LOCAL_CONTROL:-0}
   zendure:
     volumes:
+      - ./zendure/collector.py:/usr/src/zendure/collector.py:ro
       - site-state:/state
     environment:
       - SITE_STATE_PATH=/state/site.sqlite3

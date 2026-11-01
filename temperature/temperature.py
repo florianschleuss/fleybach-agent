@@ -128,7 +128,7 @@ def update_temperature(id: str) -> bool:
         if sensor.lower_bound <= temperature <= sensor.upper_bound:
             sensor.update_value(temperature)
             from utils.site_store import publish
-            publish('temperature:'+sensor.device_id,sensor.name,'°C',sensor.value+sensor.offset,
+            publish('temperature:'+sensor.device_id,sensor.name,'°C',sensor.value,
                     sensor.last_updated,'temperature')
             return True
     except FileNotFoundError as e:
@@ -172,7 +172,7 @@ def serial_sensor_updates(line: str):
         if sensor.lower_bound <= value <= sensor.upper_bound:
             sensor.update_value(value)
             from utils.site_store import publish
-            publish('temperature:'+sensor.device_id,sensor.name,'°C',sensor.value+sensor.offset,
+            publish('temperature:'+sensor.device_id,sensor.name,'°C',sensor.value,
                     sensor.last_updated,'temperature')
             updates.append({'id': sensor.device_id, 'value': sensor.value})
     return updates
