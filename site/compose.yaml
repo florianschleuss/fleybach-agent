@@ -6,12 +6,14 @@ services:
     restart: unless-stopped
     volumes:
       - ./utils:/app/utils:ro
+      - ./device/device-config.yaml:/config/devices.yaml:ro
       - site-state:/state
     environment:
       - CUSTOMER_DOMAIN
       - CUSTOMER_SECRET
       - AUTH_URL
       - PYTHONDONTWRITEBYTECODE=1
+      - SITE_DEVICE_CONFIG=/config/devices.yaml
       - SITE_STATE_PATH=/state/site.sqlite3
   power:
     volumes:

@@ -45,4 +45,11 @@ class SiteTests(unittest.TestCase):
   with patch.dict(os.environ,{'CUSTOMER_DOMAIN':'one.example.com'}):self.source()
   with patch.dict(os.environ,{'CUSTOMER_DOMAIN':'two.example.com'}):
    with self.assertRaises(RuntimeError):configuration()
+ def test_services_and_config_persist_at_one_revision_without_changing_v1_schema(self):
+  from utils.site_store import database
+  cfg=copy.deepcopy(DEFAULT);apply(1,cfg,services={'sensor':['power']})
+  state=configuration();self.assertEqual(state['services'],{'sensor':['power']});self.assertEqual(state['config']['schemaVersion'],1)
+  apply(2,cfg,services={'sensor':['power','solar']})
+  with database() as db:self.assertEqual(db.execute('SELECT count(*) FROM revisions').fetchone()[0],2)
+  with self.assertRaises(ValueError):apply(2,cfg,services={'sensor':[]})
 if __name__=='__main__':unittest.main()

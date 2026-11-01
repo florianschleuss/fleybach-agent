@@ -18,6 +18,7 @@ def database():
     db.execute('PRAGMA journal_mode=WAL')
     db.execute('CREATE TABLE IF NOT EXISTS inventory (id TEXT PRIMARY KEY, payload TEXT NOT NULL)')
     db.execute('CREATE TABLE IF NOT EXISTS settings (id INTEGER PRIMARY KEY, payload TEXT NOT NULL)')
+    db.execute('CREATE TABLE IF NOT EXISTS revisions (revision INTEGER PRIMARY KEY, payload TEXT NOT NULL)')
     db.execute('CREATE TABLE IF NOT EXISTS identity (id INTEGER PRIMARY KEY, customer TEXT NOT NULL)')
     customer=os.environ.get('CUSTOMER_DOMAIN')
     if customer:
@@ -69,8 +70,12 @@ def inventory(now=None):
             'stale' if now-sampled>override.get('maxAgeSeconds',60) else 'valid')
     return items
 
-def apply(revision,config):
+def apply(revision,config,services=None):
     config=validate(config,inventory())
+    if services is not None:
+        if not isinstance(services,dict) or len(services)>100:raise ValueError('Invalid services')
+        for kind,features in services.items():
+            if not isinstance(kind,str) or len(kind)>80 or not isinstance(features,list) or len(features)>256 or any(not isinstance(f,str) or len(f)>120 for f in features):raise ValueError('Invalid service features')
     if isinstance(revision,bool) or not isinstance(revision,int) or revision<0: raise ValueError('Invalid revision')
     with database() as db:
         db.execute('BEGIN IMMEDIATE')
@@ -79,8 +84,15 @@ def apply(revision,config):
             current=json.loads(old[0])
             if revision<current['revision'] or (revision==current['revision'] and config!=current['config']):
                 raise ValueError('Stale/conflicting configuration')
-        db.execute('INSERT INTO settings VALUES (1,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload',
-                   (json.dumps(dict(revision=revision,config=config)),))
+            if revision==current['revision'] and services is not None and 'services' in current and services!=current['services']:
+                raise ValueError('Conflicting service configuration')
+            db.execute('INSERT OR IGNORE INTO revisions VALUES (?,?)',(current['revision'],old[0]))
+        payload=dict(revision=revision,config=config)
+        if services is not None:payload['services']=services
+        encoded=json.dumps(payload)
+        db.execute('INSERT INTO settings VALUES (1,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload',(encoded,))
+        db.execute('INSERT INTO revisions VALUES (?,?) ON CONFLICT(revision) DO UPDATE SET payload=excluded.payload',(revision,encoded))
+        db.execute('DELETE FROM revisions WHERE revision NOT IN (SELECT revision FROM revisions ORDER BY revision DESC LIMIT 20)')
 
 def role_value(role,legacy_name=None,source=None):
     cfg=configuration()['config']

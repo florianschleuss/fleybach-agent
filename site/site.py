@@ -29,11 +29,18 @@ def synchronize():
             response=session.get(url,headers=headers,timeout=(3,8))
             response.raise_for_status(); data=response.json()['data']
             current=configuration()
-            if data['revision']>current['revision']:
-                apply(data['revision'],data['config'])
+            if data['revision']>current['revision'] or (data['revision']==current['revision'] and data.get('services')!=current.get('services')):
+                apply(data['revision'],data['config'],services=data.get('services'))
             current=configuration()
-            response=session.post(url+'/agent',headers=headers,json={
-                'activeRevision':current['revision'], 'inventory':inventory()},timeout=(3,8))
+            payload={'activeRevision':current['revision'], 'inventory':inventory()}
+            path=os.environ.get('SITE_DEVICE_CONFIG')
+            if path:
+                try:
+                    from utils.site_requirements import read_requirements
+                    payload['requirements']=read_requirements(path)
+                except Exception:
+                    app.logger.warning('Device dependency report unavailable; retaining previous report')
+            response=session.post(url+'/agent',headers=headers,json=payload,timeout=(3,8))
             response.raise_for_status()
         except (requests.RequestException, ValueError, KeyError, TypeError, OSError):
             app.logger.warning('Site synchronization unavailable; keeping local configuration')
