@@ -65,60 +65,6 @@ client.connect()
 sml_parser = SMLSerialParser()
 
 
-def update_sensor(id: str, name: str, value: Union[int, float], unit: str, type: str) -> bool:
-    '''
-    :return: True if update was successful
-    '''
-    jwt.v()
-    if (sensor := config.get_sensor(id)) is None:
-        return False
-    value = value + sensor.offset
-    try:
-        patch = r.patch(f'https://{AUTH_URL}/sensor/sensors/{id}?customer_id={jwt.token.customer_id}', json={
-            'value': value
-        }, headers={'x-access-token': jwt.token._token}, timeout=(3, 8))
-        if patch.status_code == 404:
-            post = r.post(f'https://{AUTH_URL}/sensor/sensors?customer_id={jwt.token.customer_id}', json={
-                'id': id,
-                'name': name,
-                'value': value,
-                'unit': unit,
-                'type': type
-            }, headers={'x-access-token': jwt.token._token}, timeout=(3, 8))
-        sensor.present_in_database = True
-    except r.exceptions.RequestException as e:
-        Event("Error while update_sensor()",
-              details=[str(e)],
-              initiator='Power Component',
-              event_severity=EventSeverity.IMPORTANT,
-              event_type=EventType.ERROR).store()
-    return False  # TODO Validation of success
-
-
-def batch_update_sensor(sensors_list: List[Dict]):
-    '''
-    :return: True if update was successful
-    '''
-    if len(sensors_list) == 0:
-        return
-    jwt.v()
-    try:
-        post = r.patch(f'https://{AUTH_URL}/sensor/sensors?customer_id={jwt.token.customer_id}', json={
-            'sensors': sensors_list
-        }, headers={'x-access-token': jwt.token._token}, timeout=(3, 8))
-    except r.exceptions.RequestException as e:
-        for update_sensor in sensors_list:
-            if (sensor := config.get_sensor(update_sensor['id'])) is None:
-                return False
-            sensor.present_in_database = False
-        Event("Error while batch_update_sensor()",
-              details=[str(e)],
-              initiator='Power Component',
-              event_severity=EventSeverity.IMPORTANT,
-              event_type=EventType.ERROR).store()
-    return False  # TODO Validation of success
-
-
 def make_history(names: List):
     jwt.v()
     try:

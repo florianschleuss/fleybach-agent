@@ -56,53 +56,6 @@ for routine in config.routines:
         routine.last_run -= routine.interval_seconds
 
 
-def update_sensor(id: str, value: Union[int, float]) -> bool:
-    '''
-    :return: True if update was successful
-    '''
-    jwt.v()
-    print(config.get_sensor(id), flush=True)
-    if (sensor := config.get_sensor(id)) is None:
-        return False
-    value = value + sensor.offset
-    try:
-        patch = r.patch(f'https://{AUTH_URL}/sensor/sensors/{id}?customer_id={jwt.token.customer_id}', json={
-            'value': value
-        }, headers={'x-access-token': jwt.token._token}, timeout=(3, 8))
-        print("Patch", flush=True)
-        print(patch.status_code, flush=True)
-        if patch.status_code == 404:
-            post = r.post(f'https://{AUTH_URL}/sensor/sensors?customer_id={jwt.token.customer_id}', json={
-                'id': sensor.device_id,
-                'name': sensor.name,
-                'value': value,
-                'unit': sensor.unit,
-                'type': sensor.type
-            }, headers={'x-access-token': jwt.token._token}, timeout=(3, 8))
-            print("Post", flush=True)
-            print(post.status_code, flush=True)
-        sensor.present_in_database = True
-    except r.exceptions.RequestException:
-        pass
-    return False  # TODO Validation of success
-
-
-def batch_update_sensor(sensors_list: List[Dict]):
-    if len(sensors_list) == 0:
-        return
-    jwt.v()
-    try:
-        post = r.patch(f'https://{AUTH_URL}/sensor/sensors?customer_id={jwt.token.customer_id}', json={
-            'sensors': sensors_list
-        }, headers={'x-access-token': jwt.token._token}, timeout=(5, 15))
-    except r.exceptions.RequestException:
-        for update_sensor in sensors_list:
-            if (sensor := config.get_sensor(update_sensor['id'])) is None:
-                return False
-            sensor.present_in_database = False
-    return False  # TODO Validation of success
-
-
 def make_history(names: List):
     jwt.v()
     try:
