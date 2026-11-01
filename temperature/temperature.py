@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 import json
+import math
 import os
 import threading
 import time
@@ -30,6 +31,11 @@ es: EmailSender = EmailSender.from_env()
 
 with open('config.json', 'r') as config_file:
     config: SensorConfig = SensorConfig.from_object(json.load(config_file))
+
+# Start a new history segment as soon as fresh readings arrive after restart.
+for routine in config.routines:
+    if routine.type == 'cycle':
+        routine.last_run -= routine.interval_seconds
 
 
 def update_sensor(id: str, value: Union[int, float]) -> bool:
@@ -70,7 +76,7 @@ def batch_update_sensor(sensors_list: List[Dict]):
     try:
         post = r.patch(f'https://{AUTH_URL}/sensor/sensors?customer_id={jwt.token.customer_id}', json={
             'sensors': sensors_list
-        }, headers={'x-access-token': jwt.token._token})
+        }, headers={'x-access-token': jwt.token._token}, timeout=(5, 15))
     except r.exceptions.ConnectionError:
         for update_sensor in sensors_list:
             if (sensor := config.get_sensor(update_sensor['id'])) is None:
@@ -82,12 +88,21 @@ def batch_update_sensor(sensors_list: List[Dict]):
 def make_history(names: List):
     jwt.v()
     try:
-        post = r.post(f'https://{AUTH_URL}/sensor/sensors/names/history?customer_id={jwt.token.customer_id}', json={
+        response = r.post(f'https://{AUTH_URL}/sensor/sensors/names/history?customer_id={jwt.token.customer_id}', json={
             'names': names
-        }, headers={'x-access-token': jwt.token._token})
-    except r.exceptions.ConnectionError:
-        pass
-    return False  # TODO Validation of success
+        }, headers={'x-access-token': jwt.token._token}, timeout=(5, 15))
+        response.raise_for_status()
+        rows = response.json().get('data', [])
+        fresh = {row['name'] for row in rows
+                 if row.get('lastModified', 0) >= time.time() - 60}
+        if not set(names).issubset(fresh):
+            logger.warning('Temperature history skipped stale or missing sensors: %s',
+                           ', '.join(sorted(set(names) - fresh)))
+            return False
+        return True
+    except (r.exceptions.RequestException, ValueError, TypeError, KeyError):
+        logger.warning('Temperature history request failed; will retry next cycle')
+        return False
 
 
 def update_temperature(id: str) -> bool:
@@ -95,6 +110,9 @@ def update_temperature(id: str) -> bool:
     :return: True if update was successful
     '''
     if (sensor := config.get_sensor(id)) is None:
+        return False
+    # Serial sensors are read together; missing local 1-Wire files are expected.
+    if sensor.serial_connected:
         return False
     try:
         with open('/sys/bus/w1/devices/{}/w1_slave'.format(id)) as file:
@@ -122,51 +140,49 @@ def update_temperature(id: str) -> bool:
     return False
 
 
+def serial_sensor_updates(line: str):
+    """Ignore a damaged serial frame without stopping the polling worker."""
+    try:
+        report = json.loads(line)
+    except (ValueError, TypeError):
+        logger.warning('Ignoring malformed temperature serial frame')
+        return None
+    if not isinstance(report, dict) or not isinstance(report.get('sensors'), list):
+        logger.warning('Ignoring temperature frame without sensor list')
+        return None
+    updates = []
+    for reading in report['sensors']:
+        if not isinstance(reading, dict):
+            continue
+        sensor = config.get_sensor(reading.get('id'))
+        value = reading.get('value')
+        if sensor is None or not sensor.enabled:
+            continue
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            continue
+        if sensor.lower_bound <= value <= sensor.upper_bound:
+            sensor.update_value(value)
+            updates.append({'id': sensor.device_id, 'value': sensor.value})
+    return updates
+
+
 def update_temperature_by_serial() -> List[Dict]:
-    '''
-    Updates all sensors that are send via serial
-    '''
-    batch_sensors = []
-    with serial.Serial(
-            port='/dev/ttyUSBTem',
-            baudrate=115200,
-            parity=serial.PARITY_NONE,
-            stopbits=serial.STOPBITS_ONE,
-            bytesize=serial.EIGHTBITS,
-            timeout=0) as ser:
-        seq = []
-        start_time = time.time()
-        # 20 Seconds time to receive the serial-data
-        while time.time() - start_time < 20:
-            for c in ser.read():
-                seq.append(chr(c))
-
-                # Only evaluate if end-of-line is reached
-                if chr(c) != '\n':
-                    continue
-
-                # convert from ANSII to string
-                joined_seq = ''.join(str(v)for v in seq).strip()
-                if len(joined_seq) < 2:
-                    continue
-
-                if joined_seq[0] == '{' and joined_seq[-1] == '}':
-                    data_sensors = json.loads(
-                        joined_seq)['sensors']
-                    for data_sensor in data_sensors:
-                        if (sensor := config.get_sensor(data_sensor['id'])) is None:
-                            continue
-
-                        temperature = data_sensor['value']
-                        if temperature is None:
-                            continue
-                        if sensor.lower_bound <= temperature <= sensor.upper_bound:
-                            sensor.update_value(temperature)
-                            batch_sensors.append(
-                                {'id': sensor.device_id, 'value': sensor.value})
-                    return batch_sensors
-                seq = []
-                break
+    with serial.Serial(port='/dev/ttyUSBTem', baudrate=115200,
+                       parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
+                       bytesize=serial.EIGHTBITS, timeout=.2) as ser:
+        pending = bytearray()
+        started = time.monotonic()
+        while time.monotonic() - started < 20:
+            pending.extend(ser.read(256))
+            while b'\n' in pending:
+                line, _, rest = pending.partition(b'\n')
+                pending = bytearray(rest)
+                updates = serial_sensor_updates(line.decode('utf-8', errors='replace').strip())
+                if updates is not None:
+                    return updates
+            if len(pending) > 32768:
+                pending.clear()
+                logger.warning('Discarding oversized temperature serial frame')
         return []
 
 
@@ -175,7 +191,8 @@ def check_routines():
         if routine.type == 'cycle':
             if not routine.due():
                 continue
-            make_history(routine.sensor_names)
+            if not make_history(routine.sensor_names):
+                continue
             Event(
                 f"{routine.name.capitalize()}: {format_seconds_to_mm_ss(time.time()-routine.last_run-10)} since last run",
                 initiator='Power Component',
@@ -190,29 +207,36 @@ def check_routines():
 
 def update_loop() -> None:
     while True:
-        serial_check_flag = False
-        start = datetime.now().timestamp()
-        sensors = []
-        for sensor in config.sensors:
-            if not sensor.enabled:
-                continue
-            if sensor.on_timeout():
-                continue
-            if not update_temperature(sensor.device_id):
+        try:
+            serial_check_flag = False
+            start = datetime.now().timestamp()
+            sensors = []
+            for sensor in config.sensors:
+                if not sensor.enabled:
+                    continue
                 if sensor.serial_connected:
                     serial_check_flag = True
-                continue
-            if sensor.present_in_database:
-                sensors.append(
-                    {'id': sensor.device_id, 'value': sensor.value})
-            else:
-                update_sensor(sensor.device_id, sensor.value)
-        if serial_check_flag:
-            sensors.extend(update_temperature_by_serial())
-        batch_update_sensor(sensors_list=sensors)
-        check_routines()
-        if (delta := (datetime.now().timestamp() - start)) < REFRESH_TIME_SECONDS:
-            time.sleep(REFRESH_TIME_SECONDS - delta)
+                    continue
+                if sensor.on_timeout():
+                    continue
+                if not update_temperature(sensor.device_id):
+                    if sensor.serial_connected:
+                        serial_check_flag = True
+                    continue
+                if sensor.present_in_database:
+                    sensors.append(
+                        {'id': sensor.device_id, 'value': sensor.value})
+                else:
+                    update_sensor(sensor.device_id, sensor.value)
+            if serial_check_flag:
+                sensors.extend(update_temperature_by_serial())
+            batch_update_sensor(sensors_list=sensors)
+            check_routines()
+            if (delta := (datetime.now().timestamp() - start)) < REFRESH_TIME_SECONDS:
+                time.sleep(REFRESH_TIME_SECONDS - delta)
+        except Exception:
+            logger.exception('Temperature polling failed; retrying next cycle')
+            time.sleep(REFRESH_TIME_SECONDS)
 
 
 app = Flask(__name__)
