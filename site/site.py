@@ -1,5 +1,6 @@
 """Read-only local site API and asynchronous configuration synchronizer."""
 import os
+import sqlite3
 import threading
 import time
 import requests
@@ -49,8 +50,8 @@ def synchronize():
             response.raise_for_status()
             hardware_manager.acknowledge(results)
             hardware_manager.queue_tests(response.json()['data'].get('hardwareTasks',[]))
-        except (requests.RequestException, ValueError, KeyError, TypeError, OSError):
-            app.logger.warning('Site synchronization unavailable; keeping local configuration')
+        except (requests.RequestException, ValueError, KeyError, TypeError, OSError, sqlite3.Error, RuntimeError) as exc:
+            app.logger.warning('Site synchronization unavailable (%s); keeping local configuration and retrying',type(exc).__name__)
         time.sleep(15)
 
 if __name__=='__main__':

@@ -15,23 +15,26 @@ def database():
     if not path: raise RuntimeError('Local site store is not configured')
     Path(path).parent.mkdir(parents=True,exist_ok=True)
     db=sqlite3.connect(path, timeout=2)
-    db.execute('PRAGMA journal_mode=WAL')
-    db.execute('CREATE TABLE IF NOT EXISTS inventory (id TEXT PRIMARY KEY, payload TEXT NOT NULL)')
-    db.execute('CREATE TABLE IF NOT EXISTS settings (id INTEGER PRIMARY KEY, payload TEXT NOT NULL)')
-    db.execute('CREATE TABLE IF NOT EXISTS revisions (revision INTEGER PRIMARY KEY, payload TEXT NOT NULL)')
-    db.execute('CREATE TABLE IF NOT EXISTS identity (id INTEGER PRIMARY KEY, customer TEXT NOT NULL)')
-    customer=os.environ.get('CUSTOMER_DOMAIN')
-    if customer:
-        db.execute('INSERT OR IGNORE INTO identity VALUES (1,?)',(customer,))
-        stored=db.execute('SELECT customer FROM identity WHERE id=1').fetchone()[0]
-        if stored!=customer:
-            db.close()
-            raise RuntimeError('Local site database belongs to a different customer')
-        db.commit()
     try:
+        db.execute('PRAGMA journal_mode=WAL')
+        db.execute('CREATE TABLE IF NOT EXISTS inventory (id TEXT PRIMARY KEY, payload TEXT NOT NULL)')
+        db.execute('CREATE TABLE IF NOT EXISTS settings (id INTEGER PRIMARY KEY, payload TEXT NOT NULL)')
+        db.execute('CREATE TABLE IF NOT EXISTS revisions (revision INTEGER PRIMARY KEY, payload TEXT NOT NULL)')
+        db.execute('CREATE TABLE IF NOT EXISTS identity (id INTEGER PRIMARY KEY, customer TEXT NOT NULL)')
+        customer=os.environ.get('CUSTOMER_DOMAIN')
+        if customer:
+            stored=db.execute('SELECT customer FROM identity WHERE id=1').fetchone()
+            if stored is None:
+                db.execute('INSERT OR IGNORE INTO identity VALUES (1,?)',(customer,))
+                db.commit()
+                stored=db.execute('SELECT customer FROM identity WHERE id=1').fetchone()
+            if stored[0]!=customer:
+                raise RuntimeError('Local site database belongs to a different customer')
         yield db
         db.commit()
-    finally: db.close()
+    finally:
+        db.close()
+
 
 def publish(identifier, name, unit, value, sampled_at, source, kind='measurement', **extra):
     if not os.environ.get('SITE_STATE_PATH'): return
