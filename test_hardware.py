@@ -57,4 +57,31 @@ class HardwareTests(unittest.TestCase):
             self.assertTrue(manager.outgoing()[0]['ok']);publish.assert_not_called()
             self.assertEqual(manager.running,{})
 
+    def test_enabled_source_polls_locally_and_can_supply_control_role_without_cloud(self):
+        import sys,types
+        from utils.site_store import apply,inventory,role_value
+        from utils.site_schema import DEFAULT
+        spec=source(expectedSerial='123',enabled=True)
+        rows=[dict(metric='acWOut',unit='W',value=321,sampledAt=time.time())]
+        fake_auth=types.ModuleType('utils.auth');fake_auth.JWTValidator=Mock()
+        worker=Mock();worker.submit.return_value=True
+        with tempfile.TemporaryDirectory() as folder,patch.dict(os.environ,{
+            'SITE_STATE_PATH':str(Path(folder)/'site.sqlite3'),'CUSTOMER_DOMAIN':'fixture',
+            'AUTH_URL':'fixture.invalid','CUSTOMER_SECRET':'test-only'}),patch.dict(sys.modules,{'utils.auth':fake_auth}),\
+            patch('utils.hardware_manager.read_source',return_value=(spec,rows,None)),\
+            patch('utils.hardware_manager.CloudWorker',return_value=worker):
+            apply(1,DEFAULT,hardware=dict(schemaVersion=1,sources=[spec]))
+            manager=HardwareManager()
+            try:
+                manager.reconcile()
+                identifier='hw:'+spec['id']+':acWOut'
+                deadline=time.monotonic()+2
+                while not any(item['id']==identifier for item in inventory()) and time.monotonic()<deadline:time.sleep(.01)
+                config=copy.deepcopy(DEFAULT);config['bindings']['grid.main']=identifier
+                apply(2,config,hardware=dict(schemaVersion=1,sources=[spec]))
+                self.assertEqual(role_value('grid.main'),321)
+                self.assertTrue(worker.submit.called)
+            finally:
+                for _,stop,thread in manager.running.values():stop.set();thread.join(2)
+
 if __name__=='__main__':unittest.main(verbosity=2)
